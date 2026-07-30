@@ -411,6 +411,34 @@ footer strong { color: #c7d1df; }
 }
 
 
+/* ───────── Táctil por tipo de puntero, no por ancho ─────────
+   Un celular en horizontal supera los 760 px: los mandos deben seguir ahí. */
+@media (hover: none) and (pointer: coarse) {
+  .mobile-controls {
+    position: absolute; z-index: 8; inset: auto 12px 12px;
+    display: flex; justify-content: space-between; pointer-events: none;
+  }
+  .mobile-controls > div { display: flex; gap: 8px; align-items: flex-end; }
+  .mobile-controls button {
+    width: 52px; height: 52px; border: 1px solid #cceaff66; border-radius: 50%;
+    background: #07111fc4; color: white; backdrop-filter: blur(8px);
+    pointer-events: auto; touch-action: none;
+    font: 800 19px/1 var(--font-geist-mono), monospace;
+  }
+  .mobile-controls .jump-button { background: #12d9bedb; border-color: #86fff0; color: #03100f; }
+  .mobile-controls .pulse-button { position: relative; color: #dccfff; border-color: #a68cff; }
+  .mobile-controls .pulse-button b {
+    position: absolute; top: -4px; right: -4px; min-width: 19px; height: 19px;
+    display: grid; place-items: center; border-radius: 99px; background: var(--teal);
+    color: #04110f; font-size: 10px;
+  }
+  .mobile-controls .cycle-button { width: 42px; height: 42px; font-size: 15px; }
+  .controls-strip { display: none; }
+  .game-frame canvas { touch-action: manipulation; }
+  /* En horizontal hay sitio: el expediente se queda arriba y los poderes abajo. */
+  .cv-dock { top: 34px; bottom: auto; }
+}
+
 /* ───────── Ajustes móviles finales (orden intencional: sobrescriben) ───────── */
 @media (max-width: 760px) {
   /* La navegación se mantiene accesible en celular, en versión compacta. */
