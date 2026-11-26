@@ -331,6 +331,77 @@ export const POWERS: PowerDef[] = [
     issuer: "Mar de Becas",
     year: "2026",
   },
+  {
+    id: "bibliometria",
+    kind: "active",
+    glyph: "∑",
+    name: "Mapeo Bibliométrico",
+    effect: "Analiza la pantalla completa: daña y revela a todos los enemigos visibles.",
+    source:
+      "Artículo «Mapping public policy and business ecosystems: A bibliometric review (2000–2024)»",
+    issuer: "Multidisciplinary Reviews — Malque Publishing",
+    year: "20 nov 2026",
+  },
+  {
+    id: "transformagob",
+    kind: "passive",
+    glyph: "1°",
+    name: "Prototipo Ganador",
+    effect: "+45 de alcance del pulso y cada bloque roto devuelve 1 s.",
+    source: "1.er lugar — Hackatón Nacional Transformagob 2026",
+    issuer: "Presidencia del Consejo de Ministros — SGTD",
+    year: "20 jul 2026",
+  },
+  {
+    id: "lewagon",
+    kind: "passive",
+    glyph: "{ }",
+    name: "Núcleo de Código",
+    effect: "El pulso se recarga al doble de velocidad y +10 de energía máxima.",
+    source: "Inteligencia Artificial para Devs (120 h)",
+    issuer: "Le Wagon",
+    year: "30 jun 2026",
+  },
+  {
+    id: "overall",
+    kind: "passive",
+    glyph: "IA",
+    name: "Turno de Producción",
+    effect: "El dron aliado dura 4 s más y ataca más seguido.",
+    source: "Auxiliar de Proyectos de Inteligencia Artificial",
+    issuer: "Overall Strategy S.A.C.",
+    year: "Sep—Oct 2026",
+  },
+  {
+    id: "elevatech",
+    kind: "passive",
+    glyph: "★",
+    name: "Mención de Estudiante Destacado",
+    effect: "Cada documento recuperado devuelve +25 de energía.",
+    source: "ElevaTech — estudiante destacado en Inteligencia Artificial",
+    issuer: "Forte Global · Es Hoy",
+    year: "15 ago 2026",
+  },
+  {
+    id: "fellow",
+    kind: "passive",
+    glyph: "◈",
+    name: "Red Impact Fellow",
+    effect: "+20 s de tiempo en todos los niveles.",
+    source: "Impact Regional Fellowship 2026 (120 h) — IRF26-MOQUEGUA-001",
+    issuer: "SpinOut · WIIE Ventures",
+    year: "Ago—Sep 2026",
+  },
+  {
+    id: "derecho",
+    kind: "passive",
+    glyph: "§",
+    name: "Expediente de Derecho",
+    effect: "El escudo de integridad se recarga una vez por nivel.",
+    source: "Egresado de Derecho — 259 créditos",
+    issuer: "Universidad Continental",
+    year: "24 jul 2026",
+  },
 ];
 
 export const POWER_BY_ID = new Map(POWERS.map((power) => [power.id, power]));
@@ -485,7 +556,7 @@ export const LEVELS: LevelDef[] = [
       id: "nodo",
       name: "Nodo del Caos",
       glyph: "✳",
-      hp: 6,
+      hp: 7,
       w: 92,
       h: 88,
       color: "#22b8a7",
@@ -577,7 +648,7 @@ export const LEVELS: LevelDef[] = [
       id: "reloj",
       name: "Engranaje Perezoso",
       glyph: "◷",
-      hp: 7,
+      hp: 9,
       w: 96,
       h: 90,
       color: "#fa6f61",
@@ -600,8 +671,8 @@ export const LEVELS: LevelDef[] = [
           speed: 128,
           line: "«Ahora todo junto y tarde.»",
           attacks: [
-            { kind: "dash", telegraph: 0.5, recover: 0.55 },
-            { kind: "dash", telegraph: 0.45, recover: 0.5 },
+            { kind: "dash", telegraph: 0.55, recover: 0.55 },
+            { kind: "dash", telegraph: 0.55, recover: 0.5 },
             { kind: "slam", telegraph: 0.7, recover: 0.9 },
           ],
         },
@@ -667,7 +738,7 @@ export const LEVELS: LevelDef[] = [
       id: "sello",
       name: "Sello Infinito",
       glyph: "▩",
-      hp: 8,
+      hp: 12,
       w: 104,
       h: 96,
       color: "#2c8edb",
@@ -757,7 +828,7 @@ export const LEVELS: LevelDef[] = [
       id: "nube",
       name: "Nube Gris",
       glyph: "☁",
-      hp: 9,
+      hp: 15,
       w: 112,
       h: 84,
       color: "#5354d9",
@@ -781,7 +852,7 @@ export const LEVELS: LevelDef[] = [
           line: "«Nadie sostiene tanto a la vez.»",
           attacks: [
             { kind: "beam", telegraph: 0.85, recover: 1.05, power: 2 },
-            { kind: "volley", telegraph: 0.5, recover: 0.65, power: 6 },
+            { kind: "volley", telegraph: 0.5, recover: 0.65, power: 5 },
             { kind: "dash", telegraph: 0.55, recover: 0.7 },
           ],
         },
@@ -841,12 +912,45 @@ export const LEVELS: LevelDef[] = [
         detail: "Componente de formación culminado exitosamente.",
         power: "resiliencia",
       },
+      {
+        id: "lewagon-2026",
+        icon: "{ }",
+        category: "Certificación",
+        title: "Inteligencia Artificial para Devs (120 h)",
+        issuer: "Le Wagon",
+        year: "30 jun 2026",
+        detail:
+          "Programa de 120 horas aprobado satisfactoriamente: desarrollo con inteligencia artificial.",
+        power: "lewagon",
+      },
+      {
+        id: "elevatech-2026",
+        icon: "★",
+        category: "Reconocimiento",
+        title: "ElevaTech — estudiante destacado en IA",
+        issuer: "Forte Global · Es Hoy",
+        year: "15 ago 2026",
+        detail:
+          "Formación técnica en Artificial Intelligence for Developers (4 meses), inglés y habilidades socioemocionales, con reconocimiento especial.",
+        power: "elevatech",
+      },
+      {
+        id: "fellowship-2026",
+        icon: "◈",
+        category: "Reconocimiento",
+        title: "Impact Regional Fellow 2026",
+        issuer: "SpinOut · WIIE Ventures",
+        year: "13 ago — 20 sep 2026",
+        detail:
+          "Programa híbrido de 120 horas en representación de Moquegua, con jornadas en Áncash y Lima: innovación, emprendimiento y tecnologías emergentes. Código IRF26-MOQUEGUA-001.",
+        power: "fellow",
+      },
     ],
     boss: {
       id: "legacy",
       name: "Núcleo Legacy",
       glyph: "</>",
-      hp: 10,
+      hp: 19,
       w: 100,
       h: 100,
       color: "#14b8a6",
@@ -871,7 +975,7 @@ export const LEVELS: LevelDef[] = [
           attacks: [
             { kind: "split", telegraph: 0.8, recover: 1.35, power: 2 },
             { kind: "beam", telegraph: 0.75, recover: 0.95, power: 2 },
-            { kind: "volley", telegraph: 0.5, recover: 0.6, power: 6 },
+            { kind: "volley", telegraph: 0.5, recover: 0.6, power: 5 },
           ],
         },
         {
@@ -880,7 +984,7 @@ export const LEVELS: LevelDef[] = [
           speed: 142,
           line: "«Si caigo, caigo con todo el sistema.»",
           attacks: [
-            { kind: "dash", telegraph: 0.42, recover: 0.45 },
+            { kind: "dash", telegraph: 0.55, recover: 0.45 },
             { kind: "orbit", telegraph: 0.6, recover: 1.2, power: 8 },
             { kind: "summon", telegraph: 0.6, recover: 0.95, power: 3 },
           ],
@@ -903,24 +1007,58 @@ export const LEVELS: LevelDef[] = [
     villain: "El Sesgo",
     villainLine: "«El futuro solo admite un perfil.»",
     intro:
-      "La última cámara no tiene expedientes: tiene un filtro. Capacitación electoral, comunidad de +11 mil seguidores y un perfil híbrido entran a la vez, y el algoritmo decide que eso no cabe en su plantilla.",
+      "La última cámara no tiene expedientes: tiene un filtro. Entran a la vez un primer lugar nacional, un artículo científico publicado, un empleo en inteligencia artificial y un título de gestión pública. El algoritmo decide que eso no cabe en su plantilla.",
     conflict:
-      "Un perfil que mezcla gestión pública, derecho digital, ingeniería y comunicación no encaja en ninguna casilla del filtro.",
+      "Un perfil que mezcla gestión pública, derecho, ingeniería, investigación y comunicación no encaja en ninguna casilla del filtro.",
     outro:
       "«Perfil no clasificable.» El Sesgo se apaga. La ruta completa queda como expediente público.",
     reward: "sinergia",
     palette: ["#110d1c", "#3b174e", "#b743a7", "#ffc6ec"],
     documents: [
       {
-        id: "onpe-2026",
-        icon: "ON",
-        category: "Trabajo",
-        title: "Capacitador Electoral — Elecciones Generales 2026",
-        issuer: "ONPE — ODPE Mariscal Nieto",
-        year: "Feb—Abr 2026",
+        id: "transformagob-2026",
+        icon: "1°",
+        category: "Reconocimiento nacional",
+        title: "1.er lugar — Hackatón Nacional Transformagob 2026",
+        issuer: "Presidencia del Consejo de Ministros — SGTD",
+        year: "20 jul 2026",
         detail:
-          "Capacitación de personal electoral (STAE/CCPP) para el desarrollo de los comicios en Moquegua.",
+          "Propuesta más destacada frente a un desafío de innovación digital con impacto en entidades públicas, en el marco de la Política Nacional de Transformación Digital. Constancia PCM-SGTD-2026-38-LEJQ4Y.",
+        power: "transformagob",
         recharge: true,
+      },
+      {
+        id: "paper-2026",
+        icon: "∑",
+        category: "Publicación científica",
+        title: "Mapping public policy and business ecosystems (2000–2024)",
+        issuer: "Multidisciplinary Reviews — Malque Publishing",
+        year: "20 nov 2026",
+        detail:
+          "Revisión bibliométrica publicada como coautor junto a Huancas-Segura, Pérez Saenz y González-Díaz. Palabras clave: gobernanza, emprendimiento, análisis bibliométrico.",
+        power: "bibliometria",
+      },
+      {
+        id: "overall-2026",
+        icon: "IA",
+        category: "Trabajo",
+        title: "Auxiliar de Proyectos de Inteligencia Artificial",
+        issuer: "Overall Strategy S.A.C. — Lima",
+        year: "22 sep — 21 oct 2026",
+        detail:
+          "Primer puesto formal dedicado a proyectos de inteligencia artificial, con certificado de trabajo emitido por la empresa.",
+        power: "overall",
+      },
+      {
+        id: "derecho-2026",
+        icon: "§",
+        category: "Hito académico",
+        title: "Egresado de Derecho — 259 créditos",
+        issuer: "Universidad Continental",
+        year: "24 jul 2026",
+        detail:
+          "Culminación del plan curricular completo de Derecho en modalidad semipresencial, sobre su base de gestión pública.",
+        power: "derecho",
       },
       {
         id: "mardebecas-2026",
@@ -941,7 +1079,7 @@ export const LEVELS: LevelDef[] = [
         issuer: "Le Wagon · VIU · UPC",
         year: "2026 — En curso",
         detail:
-          "Bootcamp de programación, maestría en Derecho Digital y Ciberseguridad e Ingeniería de Sistemas.",
+          "Formación en programación con IA, maestría en Derecho Digital y Ciberseguridad e Ingeniería de Sistemas.",
         power: "ciberescudo",
       },
     ],
@@ -949,7 +1087,7 @@ export const LEVELS: LevelDef[] = [
       id: "sesgo",
       name: "El Sesgo",
       glyph: "◬",
-      hp: 14,
+      hp: 26,
       w: 128,
       h: 118,
       color: "#b743a7",
@@ -963,7 +1101,7 @@ export const LEVELS: LevelDef[] = [
           speed: 84,
           line: "«El futuro solo admite un perfil.»",
           attacks: [
-            { kind: "volley", telegraph: 0.68, recover: 0.8, power: 6 },
+            { kind: "volley", telegraph: 0.68, recover: 0.8, power: 5 },
             { kind: "dash", telegraph: 0.62, recover: 0.7 },
             { kind: "beam", telegraph: 0.8, recover: 0.9, power: 2 },
           ],
@@ -976,7 +1114,7 @@ export const LEVELS: LevelDef[] = [
           attacks: [
             { kind: "summon", telegraph: 0.62, recover: 1, power: 4 },
             { kind: "slam", telegraph: 0.72, recover: 0.85 },
-            { kind: "volley", telegraph: 0.48, recover: 0.6, power: 7 },
+            { kind: "volley", telegraph: 0.48, recover: 0.6, power: 5 },
             { kind: "orbit", telegraph: 0.62, recover: 1.15, power: 8 },
           ],
         },
@@ -986,7 +1124,7 @@ export const LEVELS: LevelDef[] = [
           speed: 150,
           line: "«Entonces reescribo la plantilla.»",
           attacks: [
-            { kind: "dash", telegraph: 0.4, recover: 0.4 },
+            { kind: "dash", telegraph: 0.55, recover: 0.4 },
             { kind: "split", telegraph: 0.7, recover: 1.1, power: 2 },
             { kind: "beam", telegraph: 0.55, recover: 0.7, power: 3 },
             { kind: "orbit", telegraph: 0.5, recover: 0.95, power: 10 },
@@ -1021,9 +1159,21 @@ export type ArchiveEntry = {
 export const ARCHIVE: ArchiveEntry[] = [
   {
     group: "Formación",
-    title: "Licenciado en Gestión Pública y Desarrollo Social",
-    issuer: "Universidad Nacional de Moquegua",
-    year: "2018—2025",
+    title: "Título Profesional de Licenciado en Gestión Pública y Desarrollo Social",
+    issuer: "Universidad Nacional de Moquegua — Facultad de Ciencias Sociales",
+    year: "24 abr 2025",
+  },
+  {
+    group: "Formación",
+    title: "Egresado de Derecho — 259 créditos, modalidad semipresencial",
+    issuer: "Universidad Continental",
+    year: "24 jul 2026",
+  },
+  {
+    group: "Formación",
+    title: "Colegiatura habilitada — Registro CLAD N.° 58365",
+    issuer: "Colegio Regional de Licenciados en Administración — Arequipa",
+    year: "2025",
   },
   {
     group: "Formación",
@@ -1050,6 +1200,12 @@ export const ARCHIVE: ArchiveEntry[] = [
     year: "Ago 2024 — Abr 2025",
   },
 
+  {
+    group: "Experiencia",
+    title: "Auxiliar de Proyectos de Inteligencia Artificial",
+    issuer: "Overall Strategy S.A.C. — Lima",
+    year: "22 sep — 21 oct 2026",
+  },
   {
     group: "Experiencia",
     title: "Capacitador Electoral — Elecciones Generales 2026",
@@ -1131,6 +1287,30 @@ export const ARCHIVE: ArchiveEntry[] = [
 
   {
     group: "Certificaciones",
+    title: "Inteligencia Artificial para Devs (120 h)",
+    issuer: "Le Wagon",
+    year: "30 jun 2026",
+  },
+  {
+    group: "Certificaciones",
+    title: "ElevaTech: IA para desarrolladores (4 meses), inglés y habilidades socioemocionales",
+    issuer: "Forte Global · Es Hoy",
+    year: "15 ago 2026",
+  },
+  {
+    group: "Certificaciones",
+    title: "Job Ready Program (12 h) y sesiones conversacionales intensivas",
+    issuer: "Ply",
+    year: "4 ago 2026",
+  },
+  {
+    group: "Certificaciones",
+    title: "Impact Regional Fellowship 2026 (120 h, híbrido en Áncash y Lima)",
+    issuer: "SpinOut · WIIE Ventures",
+    year: "13 ago — 20 sep 2026",
+  },
+  {
+    group: "Certificaciones",
     title: "Aprende Power BI — certificado 933f…6125",
     issuer: "LinkedIn Learning · Microsoft",
     year: "27 jul 2026",
@@ -1149,15 +1329,33 @@ export const ARCHIVE: ArchiveEntry[] = [
   },
   {
     group: "Certificaciones",
+    title: "CIMA International Summit 2025: IA y Datos para transformar el futuro (9 h)",
+    issuer: "Anglo American Quellaveco · Merlin Data Technology — Talento Digital Moquegua",
+    year: "27 nov 2025",
+  },
+  {
+    group: "Certificaciones",
+    title: "Jóvenes, Ciudadanía y Democracia LATAM 2025 — becario (65 h)",
+    issuer: "COPLAN — Consultores en Planificación",
+    year: "Abr—May 2025",
+  },
+  {
+    group: "Certificaciones",
+    title: "GET Ahead: gestión empresarial y emprendimiento sensible al género",
+    issuer: "OIT-WED",
+    year: "20 mar 2023",
+  },
+  {
+    group: "Certificaciones",
     title: "Introducción a la IA Moderna",
     issuer: "Cisco Networking Academy",
     year: "Nov 2025",
   },
   {
     group: "Certificaciones",
-    title: "TechEmprende: IA aplicada a Negocios y Data Analytics (46 h)",
+    title: "TechEmprende: IA y Datos en Acción (46 h) — Programa Embajadores del Bien 2025",
     issuer: "Merlin Data Technology",
-    year: "Jul—Nov 2025",
+    year: "27 nov 2025",
   },
   {
     group: "Certificaciones",
@@ -1264,15 +1462,34 @@ export const ARCHIVE: ArchiveEntry[] = [
 
   {
     group: "Reconocimientos",
+    title: "1.er lugar — Hackatón Nacional Transformagob 2026 (PCM-SGTD-2026-38-LEJQ4Y)",
+    issuer: "Presidencia del Consejo de Ministros — Secretaría de Gobierno y Transformación Digital",
+    year: "20 jul 2026",
+  },
+  {
+    group: "Reconocimientos",
+    title:
+      "Publicación: «Mapping public policy and business ecosystems: A bibliometric review (2000–2024)»",
+    issuer: "Multidisciplinary Reviews — Malque Publishing",
+    year: "20 nov 2026",
+  },
+  {
+    group: "Reconocimientos",
+    title: "Impact Regional Fellow 2026 — representación de Moquegua",
+    issuer: "SpinOut · WIIE Ventures",
+    year: "13 ago — 20 sep 2026",
+  },
+  {
+    group: "Reconocimientos",
     title: "Emprende Joven — reconocimiento económico de S/ 12,000",
     issuer: "Municipalidad Provincial Mariscal Nieto",
     year: "2025",
   },
   {
     group: "Reconocimientos",
-    title: "Programa de incubación «En Órbita» (40 h)",
-    issuer: "ProInnovate",
-    year: "Nov 2025",
+    title: "Programa de incubación «En Órbita» (40 h, 2.5 créditos)",
+    issuer: "UCSM — Incubadora INICIA, cofinanciado por ProInnóvate",
+    year: "24 set — 25 nov 2024",
   },
   {
     group: "Reconocimientos",
@@ -1318,6 +1535,52 @@ export const ARCHIVE: ArchiveEntry[] = [
   },
 ];
 
+/**
+ * Lo más reciente y lo de mayor peso, para la portada. Cada entrada remite a
+ * un documento verificable del expediente.
+ */
+export type Highlight = {
+  tag: string;
+  title: string;
+  issuer: string;
+  year: string;
+  detail: string;
+};
+
+export const HIGHLIGHTS: Highlight[] = [
+  {
+    tag: "Publicación científica",
+    title: "Mapping public policy and business ecosystems: A bibliometric review (2000–2024)",
+    issuer: "Multidisciplinary Reviews — Malque Publishing",
+    year: "20 nov 2026",
+    detail:
+      "Revisión bibliométrica publicada como coautor. Palabras clave: gobernanza, emprendimiento, análisis bibliométrico.",
+  },
+  {
+    tag: "Primer lugar nacional",
+    title: "Hackatón Nacional Transformagob 2026",
+    issuer: "Presidencia del Consejo de Ministros — SGTD",
+    year: "20 jul 2026",
+    detail:
+      "La propuesta más destacada frente a un desafío de innovación digital con impacto en entidades públicas.",
+  },
+  {
+    tag: "Experiencia",
+    title: "Auxiliar de Proyectos de Inteligencia Artificial",
+    issuer: "Overall Strategy S.A.C. — Lima",
+    year: "22 sep — 21 oct 2026",
+    detail: "Primer puesto formal dedicado a proyectos de inteligencia artificial.",
+  },
+  {
+    tag: "Formación",
+    title: "Inteligencia Artificial para Devs (120 h) y mención de estudiante destacado",
+    issuer: "Le Wagon · ElevaTech",
+    year: "Jun—Ago 2026",
+    detail:
+      "Programa de 120 horas aprobado y reconocimiento especial como estudiante destacado en IA.",
+  },
+];
+
 export const PROFILE_BLOCKS = [
   {
     label: "Perfil",
@@ -1328,8 +1591,12 @@ export const PROFILE_BLOCKS = [
     text: "Conecta instituciones, datos, IA y narrativas para convertir procesos complejos en soluciones comprensibles y útiles.",
   },
   {
+    label: "Credenciales",
+    text: "Licenciado colegiado y habilitado (CLAD 58365), egresado de Derecho y coautor de un artículo científico publicado en 2026.",
+  },
+  {
     label: "Formación 2026",
-    text: "Bootcamp de programación en Le Wagon, Maestría en Derecho Digital y Ciberseguridad en VIU e Ingeniería de Sistemas en UPC.",
+    text: "Inteligencia Artificial para Devs en Le Wagon, Maestría en Derecho Digital y Ciberseguridad en VIU e Ingeniería de Sistemas en UPC.",
   },
   {
     label: "Ubicación",

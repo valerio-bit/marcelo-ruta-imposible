@@ -17,6 +17,9 @@ comunicación digital, datos e inteligencia artificial. Cada nivel termina en un
 arena con un jefe que representa el obstáculo real de esa etapa, y cada poder
 que se desbloquea está respaldado por una certificación o un logro verificable.
 
+- **Publicado en 2026**: artículo científico en *Multidisciplinary Reviews*,
+  1.er lugar en la Hackatón Nacional Transformagob (PCM) y el primer empleo
+  dedicado a inteligencia artificial, todo dentro de los dos últimos niveles.
 - **7 jefes** con barra de vida, ataques anticipados y varias fases. «El Sesgo»
   cierra la historia con tres fases.
 - **Poder `E` con cargas**: se empieza con 3, el máximo es 5, se conservan entre
@@ -34,13 +37,14 @@ que se desbloquea está respaldado por una certificación o un logro verificable
 | Mover | `A` / `D` o flechas | botones ← → |
 | Saltar | `Espacio`, `W`, ↑ | botón ↑ |
 | Poder | `E` | botón `E` (muestra las cargas) |
+| Picado | `S` o ↓ | botón ↓ |
 | Cambiar poder | `Q` | botón ⟳ |
 | Pausa | `Esc` | — |
 
 ## Cómo está hecho
 
 React 19, Next 16 sobre vinext, TypeScript y Canvas 2D. Toda la lógica de juego
-vive en un motor puro (`fuente/app/engine.ts`) cubierto por 44 pruebas
+vive en un motor puro (`fuente/app/engine.ts`) cubierto por 63 pruebas
 automatizadas que se ejecutan en Node; el sonido es sintetizado con Web Audio.
 
 La página publicada es un único archivo HTML con el CSS, el JavaScript y las
@@ -50,7 +54,7 @@ tipografías incrustados: **cero peticiones externas**.
 cd fuente
 npm ci
 npm run dev              # desarrollo en http://localhost:3000
-npm test                 # 44 pruebas de motor y render + build + HTML
+npm test                 # 63 pruebas de motor y render + build + HTML
 npm run build && npm run build:standalone
 ```
 

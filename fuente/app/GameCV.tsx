@@ -9,6 +9,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { AudioEngine } from "./audio.ts";
+import { PORTRAIT } from "./portrait.ts";
 import {
   derivePowers,
   getMotionSnapshot,
@@ -24,6 +25,7 @@ import {
   ARCHIVE,
   CONTACT,
   EDITION,
+  HIGHLIGHTS,
   LAST_UPDATE,
   LEVELS,
   MAX_CHARGES,
@@ -40,8 +42,11 @@ import {
   cyclePower,
   drainEvents,
   drainSounds,
+  documentCount,
   firePulse,
   jump,
+  releaseJump,
+  slamDown,
   step,
   VIEW_H,
   VIEW_W,
@@ -58,6 +63,7 @@ const KEY_CODES = {
   jump: ["ArrowUp", "KeyW", "Space"],
   pulse: ["KeyE", "KeyK"],
   cycle: ["KeyQ"],
+  slam: ["ArrowDown", "KeyS"],
 };
 
 export function GameCV() {
@@ -208,6 +214,15 @@ export function GameCV() {
     jump(worldRef.current);
   }, [unlockAudio]);
 
+  const endJump = useCallback(() => {
+    releaseJump(worldRef.current);
+  }, []);
+
+  const triggerSlam = useCallback(() => {
+    unlockAudio();
+    slamDown(worldRef.current);
+  }, [unlockAudio]);
+
   const triggerPulse = useCallback(() => {
     unlockAudio();
     firePulse(worldRef.current);
@@ -244,12 +259,16 @@ export function GameCV() {
       if (KEY_CODES.jump.includes(event.code)) triggerJump();
       if (KEY_CODES.pulse.includes(event.code)) triggerPulse();
       if (KEY_CODES.cycle.includes(event.code)) triggerCycle();
+      if (KEY_CODES.slam.includes(event.code)) triggerSlam();
       if (event.code === "Escape") {
         if (worldRef.current.status === "playing") syncStatus("paused");
         else if (worldRef.current.status === "paused" && !briefing) syncStatus("playing");
       }
     };
-    const onKeyUp = (event: KeyboardEvent) => keysRef.current.delete(event.code);
+    const onKeyUp = (event: KeyboardEvent) => {
+      keysRef.current.delete(event.code);
+      if (KEY_CODES.jump.includes(event.code)) endJump();
+    };
     const onBlur = () => keysRef.current.clear();
     window.addEventListener("keydown", onKeyDown, { passive: false });
     window.addEventListener("keyup", onKeyUp);
@@ -259,7 +278,7 @@ export function GameCV() {
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
     };
-  }, [briefing, syncStatus, triggerCycle, triggerJump, triggerPulse]);
+  }, [briefing, endJump, syncStatus, triggerCycle, triggerJump, triggerPulse, triggerSlam]);
 
   useEffect(() => {
     const onVisibility = () => {
@@ -503,7 +522,9 @@ export function GameCV() {
               onClick={() => setDossierOpen((value) => !value)}
             >
               <span className="cv-dock-badge">CV {EDITION}</span>
-              <span className="cv-dock-count">{hud.documents}/3</span>
+              <span className="cv-dock-count">
+                {hud.documents}/{documentCount(levelIndex)}
+              </span>
               <span className="cv-dock-caret">{dossierOpen ? "▾" : "▸"}</span>
             </button>
             {dossierOpen && (
@@ -654,7 +675,7 @@ export function GameCV() {
             <div className="game-overlay result-overlay">
               <span className="result-glyph">✓</span>
               <p className="overlay-kicker">
-                NIVEL ASEGURADO · {hud.documents}/3 DOCUMENTOS
+                NIVEL ASEGURADO · {hud.documents}/{documentCount(levelIndex)} DOCUMENTOS
               </p>
               <h2>{currentLevel.villain} FUE SUPERADO</h2>
               <p>{currentLevel.outro}</p>
@@ -757,9 +778,17 @@ export function GameCV() {
               </button>
               <button
                 type="button"
+                className="slam-button"
+                aria-label="Picado hacia abajo"
+                onPointerDown={triggerSlam}
+              >↓</button>
+              <button
+                type="button"
                 className="jump-button"
                 aria-label="Saltar"
                 onPointerDown={triggerJump}
+                onPointerUp={endJump}
+                onPointerCancel={endJump}
               >↑</button>
             </div>
           </div>
@@ -770,6 +799,7 @@ export function GameCV() {
           <span><kbd>ESPACIO</kbd> SALTAR</span>
           <span><kbd>E</kbd> PODER ×{displayCharges}</span>
           <span><kbd>Q</kbd> CAMBIAR</span>
+          <span><kbd>S</kbd> PICADO</span>
           <span><kbd>ESC</kbd> PAUSA</span>
           <button type="button" onClick={() => openModal("help")}>MANUAL ↗</button>
         </div>
@@ -783,26 +813,21 @@ export function GameCV() {
       <section className="latest-section">
         <div className="section-heading">
           <p className="eyebrow"><span /> ACTUALIZACIÓN {LAST_UPDATE.toUpperCase()}</p>
-          <h2>ÚLTIMOS ARCHIVOS<br />INCORPORADOS</h2>
+          <h2>LO ÚLTIMO<br />DEL EXPEDIENTE</h2>
           <p>
-            Las certificaciones más recientes ya forman parte del nivel de 2026 y
-            desbloquean nuevas ventajas dentro del juego.
+            Un artículo científico publicado, un primer lugar nacional y el primer
+            empleo dedicado a inteligencia artificial. Todo esto ya forma parte de
+            los dos últimos niveles del juego.
           </p>
         </div>
         <div className="latest-grid">
-          {LEVELS[5].documents.map((item, index) => (
-            <article key={item.id} className="latest-card">
-              <div className="latest-index">0{index + 1}</div>
-              <span className="latest-icon">{item.icon}</span>
-              <small>{item.year}</small>
+          {HIGHLIGHTS.map((item) => (
+            <article key={item.title} className="latest-card">
+              <span className="latest-crystal" aria-hidden="true" />
+              <small>{item.tag} · {item.year}</small>
               <h3>{item.title}</h3>
               <p>{item.issuer}</p>
               <div>{item.detail}</div>
-              {item.power && POWER_BY_ID.get(item.power) && (
-                <em>
-                  {POWER_BY_ID.get(item.power)?.name} · {POWER_BY_ID.get(item.power)?.effect}
-                </em>
-              )}
             </article>
           ))}
         </div>
@@ -858,7 +883,9 @@ export function GameCV() {
                         onClick={() => startLevel(index)}
                         className={save.completed.includes(index) ? "is-complete" : ""}
                       >
-                        <span className="route-number">0{index + 1}</span>
+                        <span className="route-number" aria-hidden="true">
+                          0{index + 1}
+                        </span>
                         <span>
                           <small>{level.year}</small>
                           <strong>{level.title}</strong>
@@ -1000,7 +1027,12 @@ export function GameCV() {
                 <h2>MARCELO VALERI<br />QUISPE CRUZ</h2>
                 <div className="profile-layout">
                   <div className="avatar-card">
-                    <div className="avatar-portrait"><span>MV</span></div>
+                    <div className="avatar-portrait">
+                      {/* El retrato va incrustado como data URI: el artefacto de un
+                          solo archivo no puede depender del optimizador de imágenes. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={PORTRAIT} alt="Retrato de Marcelo Valeri Quispe Cruz" />
+                    </div>
                     <p>CLASE</p>
                     <strong>ESTRATEGA HÍBRIDO</strong>
                     <div className="skill-bars">
@@ -1037,7 +1069,7 @@ export function GameCV() {
                   </article>
                   <article>
                     <span>02</span><h3>RECUPERA</h3>
-                    <p>Toca los cristales documentales. Dos abren la salida; tres completan el expediente del nivel.</p>
+                    <p>Toca los cristales documentales. Dos tercios abren la salida; todos completan el expediente del nivel.</p>
                   </article>
                   <article>
                     <span>03</span><h3>PODER E</h3>
@@ -1045,7 +1077,7 @@ export function GameCV() {
                   </article>
                   <article>
                     <span>04</span><h3>ROMPE</h3>
-                    <p>Los bloques ámbar con grietas se rompen golpeándolos con la cabeza, cayendo con fuerza sobre ellos o con el pulso E. Los grises de acero son indestructibles.</p>
+                    <p>Los bloques ámbar con grietas se rompen con la cabeza, con el picado (<kbd>S</kbd> o ↓) o con el pulso E. Los grises de acero son indestructibles.</p>
                   </article>
                   <article>
                     <span>05</span><h3>ENEMIGOS</h3>
@@ -1067,7 +1099,7 @@ export function GameCV() {
 
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         Nivel {levelIndex + 1} de {LEVELS.length}: {currentLevel.title}. Estado {status}.
-        Documentos {hud.documents} de 3. Energía {hud.energy} de {hud.maxEnergy}.
+        Documentos {hud.documents} de {documentCount(levelIndex)}. Energía {hud.energy} de {hud.maxEnergy}.
         Cargas de E: {displayCharges} de {MAX_CHARGES}. Poder equipado {equippedPower?.name}.
         {hud.arena
           ? hud.bossAlive

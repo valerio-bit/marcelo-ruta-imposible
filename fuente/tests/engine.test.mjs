@@ -27,6 +27,7 @@ import {
   ZOMBIE_WARNING,
   claimBossReward,
   createBlocks,
+  createCollectibles,
   createBoss,
   createEnemies,
   createWorld,
@@ -38,6 +39,9 @@ import {
   hitBlock,
   jump,
   levelTimeLimit,
+  releaseJump,
+  requiredDocuments,
+  slamDown,
   pulseProfile,
   step,
 } from "../app/engine.ts";
@@ -79,7 +83,10 @@ test("la campaña tiene siete niveles cronológicos con jefe obligatorio", () =>
     assert.ok(level.conflict.length > 30, "cada nivel necesita conflicto");
     assert.ok(level.outro.length > 20, "cada nivel necesita escena de victoria");
     assert.ok(POWER_BY_ID.has(level.reward), "la recompensa debe ser un poder real");
-    assert.equal(level.documents.length, 3);
+    assert.ok(
+      level.documents.length >= 3 && level.documents.length <= 6,
+      `el nivel ${index + 1} tiene ${level.documents.length} documentos`,
+    );
     for (const attack of level.boss.phases.flatMap((phase) => phase.attacks)) {
       assert.ok(attack.telegraph >= 0.4, "todo ataque de jefe debe telegrafiarse");
     }
@@ -574,4 +581,161 @@ test("el efecto reducido desactiva la sacudida de cámara", () => {
   world.charges = 3;
   firePulse(world);
   assert.equal(world.shake, 0, "prefers-reduced-motion no debe sacudir la pantalla");
+});
+
+
+/* ───────────── Correcciones de jugabilidad ───────────── */
+
+test("pisar a un enemigo no devuelve daño en el mismo rebote", () => {
+  const world = playable(6, { charges: 0 });
+  const boss = world.boss;
+  world.arenaEntered = true;
+  const energy = world.energy;
+  // Pisada sobre el jefe y dos segundos de contacto seguido.
+  boss.hitCooldown = 0;
+  world.x = boss.x + 10;
+  world.y = boss.y - PLAYER_H + 6;
+  world.vy = 320;
+  step(world, 1 / 60, NO_INPUT);
+  assert.ok(world.invulnerable > 0, "el rebote debe dar gracia de invulnerabilidad");
+  advance(world, 0.3);
+  assert.equal(world.energy, energy, "pisar no puede costar energía");
+});
+
+test("caer al pozo devuelve al jugador a suelo firme", () => {
+  const world = playable(0);
+  // Correr hasta el borde del primer pozo y caer.
+  world.x = 460;
+  world.y = GROUND_Y - PLAYER_H;
+  advance(world, 0.1, { left: false, right: true });
+  const safe = world.safeX;
+  world.y = 700;
+  step(world, 1 / 60, NO_INPUT);
+  assert.equal(world.x, safe, "reaparece donde pisó suelo por última vez");
+  advance(world, 1.2);
+  assert.ok(world.grounded, "debe quedar de pie, no caer otra vez");
+});
+
+test("la barrera de la arena no está sobre un pozo", () => {
+  const world = playable(0);
+  const sobreSuelo = world.platforms.some(
+    (platform) =>
+      platform.y === GROUND_Y &&
+      ARENA_X >= platform.x &&
+      ARENA_X <= platform.x + platform.w,
+  );
+  assert.equal(sobreSuelo, true);
+});
+
+test("el salto pulsado antes de aterrizar se ejecuta al tocar suelo", () => {
+  const world = playable(0);
+  // Cayendo a 30 px del suelo se pulsa salto: no hay coyote, debe guardarse.
+  world.y = GROUND_Y - PLAYER_H - 30;
+  world.vy = 300;
+  world.grounded = false;
+  world.coyote = 0;
+  assert.equal(jump(world), false);
+  assert.ok(world.jumpBuffer > 0, "la pulsación debe quedar guardada");
+  advance(world, 0.15);
+  assert.ok(world.vy < 0, "al aterrizar, el salto guardado sale solo");
+});
+
+test("soltar el salto lo corta", () => {
+  const largo = playable(0);
+  const corto = playable(0);
+  jump(largo);
+  jump(corto);
+  releaseJump(corto);
+  advance(largo, 0.25);
+  advance(corto, 0.25);
+  assert.ok(corto.y > largo.y, "el salto corto debe llegar más abajo");
+});
+
+test("el picado rompe bloques blindados sin gastar cargas", () => {
+  const world = playable(4, { charges: 0 });
+  const block = world.blocks.find((item) => item.breakable && item.y === 318);
+  assert.ok(block);
+  assert.equal(block.armor, 2);
+  world.x = block.x + 2;
+  world.y = block.y - PLAYER_H - 60;
+  world.vy = 0;
+  world.grounded = false;
+  const cargasAntes = world.charges;
+  assert.equal(slamDown(world), true);
+  advance(world, 0.5);
+  assert.equal(world.charges, cargasAntes, "el picado no consume cargas");
+  assert.equal(block.broken, true, "dos golpes de picado o uno fuerte lo abren");
+});
+
+test("los documentos por nivel son variables y la salida pide dos tercios", () => {
+  for (let levelIndex = 0; levelIndex < LEVELS.length; levelIndex += 1) {
+    const total = LEVELS[levelIndex].documents.length;
+    const spots = createCollectibles(levelIndex);
+    assert.equal(spots.length, total, `faltan posiciones en el nivel ${levelIndex + 1}`);
+    const needed = requiredDocuments(levelIndex);
+    assert.ok(needed >= 2 && needed <= total);
+    // Nunca dos documentos en el mismo sitio.
+    const claves = new Set(spots.map((spot) => `${spot.x},${spot.y}`));
+    assert.equal(claves.size, spots.length);
+  }
+  assert.equal(requiredDocuments(0), 2);
+});
+
+test("todo documento está al alcance de un salto desde alguna superficie", () => {
+  for (let levelIndex = 0; levelIndex < LEVELS.length; levelIndex += 1) {
+    const world = playable(levelIndex);
+    const superficies = [
+      ...world.platforms.map((platform) => ({ y: platform.y, x0: platform.x, x1: platform.x + platform.w })),
+      ...world.blocks.map((block) => ({ y: block.y, x0: block.x, x1: block.x + block.w })),
+    ];
+    for (const item of world.collectibles) {
+      const alcanzable = superficies.some((s) => {
+        if (item.x < s.x0 - 40 || item.x > s.x1 + 40) return false;
+        const alturaJugador = s.y - PLAYER_H;
+        // El cristal entra en el recorrido entre estar de pie y el tope del salto.
+        return item.y + 26 >= alturaJugador - JUMP_HEIGHT && item.y - 26 <= alturaJugador + PLAYER_H;
+      });
+      assert.ok(
+        alcanzable,
+        `documento inalcanzable en nivel ${levelIndex + 1} (${item.x},${item.y})`,
+      );
+    }
+  }
+});
+
+test("los zombis patrullan sobre suelo firme", () => {
+  for (let levelIndex = 0; levelIndex < LEVELS.length; levelIndex += 1) {
+    const world = playable(levelIndex);
+    const suelos = world.platforms.filter((platform) => platform.y === GROUND_Y);
+    for (const zombie of world.enemies.filter((enemy) => enemy.kind === "zombie")) {
+      for (const x of [zombie.minX, zombie.maxX]) {
+        const haySuelo = suelos.some((s) => x >= s.x - 4 && x <= s.x + s.w + 4);
+        assert.ok(haySuelo, `zombi sobre el vacío en x=${x} (nivel ${levelIndex + 1})`);
+      }
+    }
+  }
+});
+
+test("encadenar tres derrotas devuelve una carga", () => {
+  const world = playable(0, { charges: 1 });
+  const victimas = world.enemies.filter((enemy) => enemy.kind !== "zombie").slice(0, 3);
+  assert.ok(victimas.length >= 3);
+  for (const enemy of victimas) {
+    enemy.hp = 1;
+    world.x = enemy.x;
+    world.y = enemy.y - PLAYER_H + 8;
+    world.vy = 300;
+    step(world, 1 / 60, NO_INPUT);
+  }
+  assert.ok(world.charges >= 2, "la racha de 3 debe recargar E");
+});
+
+test("el tiempo disponible baja conforme avanza la campaña", () => {
+  for (let i = 1; i < LEVELS.length; i += 1) {
+    assert.ok(
+      levelTimeLimit(i, []) < levelTimeLimit(i - 1, []),
+      `el nivel ${i + 1} debería ser más exigente en tiempo`,
+    );
+  }
+  assert.ok(levelTimeLimit(6, []) > 140, "pero sin volverse imposible");
 });

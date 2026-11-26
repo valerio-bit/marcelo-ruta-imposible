@@ -22,7 +22,8 @@ export const VIEW_H = 540;
 export const GROUND_Y = 468;
 export const WORLD_W = 3240;
 export const ARENA_X = 2500;
-export const ARENA_GATE_X = 2470;
+/** La barrera de la arena coincide con el borde: nunca sobre un pozo. */
+export const ARENA_GATE_X = ARENA_X;
 export const GATE_X = 3110;
 export const PLAYER_W = 40;
 export const PLAYER_H = 70;
@@ -150,6 +151,8 @@ export type WorldState = {
   grounded: boolean;
   jumps: number;
   coyote: number;
+  /** Salto pulsado poco antes de tocar suelo: se ejecuta al aterrizar. */
+  jumpBuffer: number;
   facing: number;
   cameraX: number;
   time: number;
@@ -372,12 +375,48 @@ export function createBlocks(levelIndex: number): Block[] {
   ];
 }
 
-export function createCollectibles(): Collectible[] {
-  return [
-    { x: 336, y: 300, index: 0, taken: false },
-    { x: 1438, y: 196, index: 1, taken: false },
-    { x: 2229, y: 300, index: 2, taken: false },
-  ];
+/**
+ * Posiciones verificadas: cada una está sobre una superficie que el jugador
+ * pisa o a la que llega de un salto, repartidas de izquierda a derecha.
+ */
+const DOC_SPOTS = [
+  { x: 336, y: 300 },
+  { x: 868, y: 272 },
+  { x: 1438, y: 196 },
+  { x: 1690, y: 196 },
+  { x: 2004, y: 188 },
+  { x: 2229, y: 300 },
+];
+
+/** Reparto por cantidad de documentos, para que nunca queden amontonados. */
+const DOC_SPREAD: Record<number, number[]> = {
+  1: [0],
+  2: [0, 5],
+  3: [0, 2, 5],
+  4: [0, 2, 4, 5],
+  5: [0, 1, 2, 4, 5],
+  6: [0, 1, 2, 3, 4, 5],
+};
+
+export function documentCount(levelIndex: number): number {
+  return clamp(LEVELS[levelIndex].documents.length, 1, DOC_SPOTS.length);
+}
+
+/** Documentos necesarios para abrir la salida: dos tercios, mínimo 2. */
+export function requiredDocuments(levelIndex: number): number {
+  const total = documentCount(levelIndex);
+  return Math.min(total, Math.max(2, Math.ceil((total * 2) / 3)));
+}
+
+export function createCollectibles(levelIndex: number): Collectible[] {
+  const total = documentCount(levelIndex);
+  const spread = DOC_SPREAD[total] ?? DOC_SPREAD[6];
+  return spread.map((spot, index) => ({
+    x: DOC_SPOTS[spot].x,
+    y: DOC_SPOTS[spot].y,
+    index,
+    taken: false,
+  }));
 }
 
 /* ───────────────────────── ENEMIGOS ───────────────────────── */
@@ -439,15 +478,16 @@ const SUMMONER_SPOTS = [
   { x: 1320, y: 130, minX: 1120, maxX: 1520 },
   { x: 2040, y: 112, minX: 1880, maxX: 2280 },
 ];
+// Cada zombi patrulla dentro de su segmento de suelo: nunca sobre un pozo.
 const ZOMBIE_SPOTS = [
-  { x: 420, y: GROUND_Y - 40 },
-  { x: 1300, y: GROUND_Y - 40 },
-  { x: 2100, y: GROUND_Y - 40 },
+  { x: 420, y: GROUND_Y - 40, minX: 40, maxX: 424 },
+  { x: 1300, y: GROUND_Y - 40, minX: 1000, maxX: 1344 },
+  { x: 2100, y: GROUND_Y - 40, minX: 1910, maxX: 2374 },
 ];
 
 export function createEnemies(levelIndex: number): Enemy[] {
   const level = LEVELS[levelIndex];
-  const speed = 46 + levelIndex * 6;
+  const speed = 46 + levelIndex * 9;
   const enemies: Enemy[] = [];
   let id = 1;
 
@@ -524,8 +564,8 @@ export function createEnemies(levelIndex: number): Enemy[] {
     enemy.baseY = spot.y;
     enemy.w = 42;
     enemy.h = 40;
-    enemy.minX = Math.max(20, spot.x - 220);
-    enemy.maxX = spot.x + 220;
+    enemy.minX = spot.minX;
+    enemy.maxX = spot.maxX;
     enemy.state = "buried";
     enemy.timer = 0;
     enemy.vx = 0;
@@ -563,7 +603,7 @@ export type WorldOptions = {
 };
 
 export function levelTimeLimit(levelIndex: number, owned: string[]): number {
-  let time = 150 + levelIndex * 10;
+  let time = 172 - levelIndex * 3;
   if (owned.includes("etica")) time += 25;
   if (owned.includes("cooperacion")) time += 8;
   if (owned.includes("siaf")) time += 10;
@@ -609,6 +649,7 @@ export function createWorld(
     grounded: true,
     jumps: 0,
     coyote: 0,
+    jumpBuffer: 0,
     facing: 1,
     cameraX: 0,
     time: timeLimit,
@@ -626,7 +667,7 @@ export function createWorld(
     owned,
     platforms: createPlatforms(levelIndex),
     blocks: createBlocks(levelIndex),
-    collectibles: createCollectibles(),
+    collectibles: createCollectibles(levelIndex),
     enemies: createEnemies(levelIndex),
     projectiles: [],
     particles: [],
@@ -756,7 +797,28 @@ export function jump(world: WorldState) {
     spawnParticles(world, world.x + PLAYER_W / 2, world.y + PLAYER_H, "smoke", 9, "#c9e6ff", 130);
     return true;
   }
+  // Si se pulsó justo antes de aterrizar, el salto sale al tocar el suelo.
+  world.jumpBuffer = 0.12;
   return false;
+}
+
+/** Soltar el salto lo corta: saltos cortos y largos con la misma tecla. */
+export function releaseJump(world: WorldState) {
+  if (world.vy < -250) world.vy = -250;
+}
+
+/**
+ * Picado: cae con fuerza, rompe bloques agrietados y golpea doble.
+ * Da una opción ofensiva aérea que no gasta cargas de E.
+ */
+export function slamDown(world: WorldState) {
+  if (world.status !== "playing" || world.grounded) return false;
+  if (world.vy > 600) return false;
+  world.vy = 780;
+  world.vx *= 0.3;
+  play(world, "bossJump");
+  spawnParticles(world, world.x + PLAYER_W / 2, world.y + PLAYER_H, "after", 8, "#b7fff1", 120);
+  return true;
 }
 
 function damageEnemy(world: WorldState, enemy: Enemy, amount: number, critical = false) {
@@ -784,6 +846,12 @@ function damageEnemy(world: WorldState, enemy: Enemy, amount: number, critical =
       world.events.push("boss-down");
     } else {
       play(world, "enemyDown");
+      if (enemy.id >= 2000) {
+        world.enemies = world.enemies.filter((other) => other.alive || other.id < 2000);
+      }
+      if (world.combo > 0 && world.combo % 3 === 0) {
+        grantCharge(world, `Racha de ${world.combo}`);
+      }
       if (has(world, "viral") && world.combo >= 2) {
         world.time += 2;
         toast(world, `Onda viral · combo ×${world.combo} · +2 s`, 1.1);
@@ -859,7 +927,7 @@ export function firePulse(world: WorldState) {
     }))
     .sort((a, b) => a.distance - b.distance);
 
-  const reach = profile.chain > 0 ? profile.radius : profile.radius;
+  const reach = profile.chain > 0 ? profile.radius * 1.25 : profile.radius;
   let chained = 0;
   for (const target of targets) {
     if (target.distance > reach) continue;
@@ -972,9 +1040,8 @@ function hurtPlayer(world: WorldState, amount: number, fromX: number, label: str
     return;
   }
   world.energy = Math.max(0, world.energy - amount);
-  world.time = Math.max(0, world.time - 4);
-  world.vx = world.x < fromX ? -250 : 250;
-  world.vy = -300;
+  world.vx = world.x < fromX ? -155 : 155;
+  world.vy = -235;
   world.invulnerable = 1.2;
   world.combo = 0;
   shake(world, 8);
@@ -1030,11 +1097,16 @@ function resolveVertical(world: WorldState, previousBottom: number, previousTop:
     if (world.vy > 0) {
       // Caer desde una plataforma sobre un bloque agrietado también lo rompe.
       const heavy = world.vy > 430;
+      // Un picado franco lo abre de una, aunque tenga blindaje.
+      const dive = world.vy > 600;
       world.y = block.y - PLAYER_H;
       world.vy = 0;
       world.grounded = true;
       world.jumps = 0;
-      if (heavy) hitBlock(world, block, "smash");
+      if (heavy) {
+        if (dive && block.breakable) block.hits = Math.max(block.hits, block.armor - 1);
+        hitBlock(world, block, "smash");
+      }
     } else if (world.vy < 0) {
       world.y = block.y + block.h;
       world.vy = 80;
@@ -1286,7 +1358,7 @@ function executeBossAttack(world: WorldState, boss: Enemy, attack: BossAttackDef
 
   switch (attack.kind) {
     case "dash": {
-      boss.vx = boss.facing * phase.speed * 3.2;
+      boss.vx = boss.facing * phase.speed * 2.5;
       boss.acting = attack.recover;
       play(world, "bossDash");
       spawnParticles(world, cx, cy, "after", 10, definition.color, 150);
@@ -1294,14 +1366,15 @@ function executeBossAttack(world: WorldState, boss: Enemy, attack: BossAttackDef
     }
     case "volley": {
       const count = attack.power ?? 3;
+      const muzzleX = cx + boss.facing * (boss.w / 2 + 14);
       for (let i = 0; i < count; i += 1) {
         const spread = (i - (count - 1) / 2) * 0.22;
-        const dx = playerCenter - cx;
+        const dx = playerCenter - muzzleX;
         const dy = world.y + PLAYER_H / 2 - cy;
         const angle = Math.atan2(dy, dx) + spread;
         fireProjectile(
           world,
-          cx,
+          muzzleX,
           cy,
           Math.cos(angle) * 250,
           Math.sin(angle) * 250,
@@ -1346,7 +1419,8 @@ function executeBossAttack(world: WorldState, boss: Enemy, attack: BossAttackDef
       break;
     }
     case "beam": {
-      const life = 0.55;
+      // 0.4 s de columna visible e inofensiva antes de quemar.
+      const life = 0.95;
       world.projectiles.push({
         x: playerCenter,
         y: 0,
@@ -1524,6 +1598,10 @@ function updateAlly(world: WorldState, dt: number) {
       Math.hypot(enemy.x + enemy.w / 2 - ally.x, enemy.y + enemy.h / 2 - ally.y) < 220,
   );
   if (candidates.length === 0) return;
+  candidates.sort(
+    (a, b) =>
+      Math.hypot(a.x - ally.x, a.y - ally.y) - Math.hypot(b.x - ally.x, b.y - ally.y),
+  );
   const target = candidates[0];
   damageEnemy(world, target, 1);
   spawnSlash(world, target.x + target.w / 2, target.y + target.h / 2, "#b7fff1");
@@ -1548,7 +1626,9 @@ export function step(world: WorldState, dt: number, controls: Controls) {
 
   // Movimiento horizontal.
   const target = (controls.right ? 1 : 0) - (controls.left ? 1 : 0);
-  const acceleration = world.grounded ? 1400 : 860;
+  // Girar en seco responde más rápido que seguir acelerando de frente.
+  const turning = target !== 0 && Math.sign(world.vx) === -target;
+  const acceleration = (world.grounded ? 1400 : 860) * (turning ? 1.9 : 1);
   world.vx += target * acceleration * delta;
   if (target === 0) world.vx *= Math.pow(world.grounded ? 0.0015 : 0.12, delta);
   world.vx = clamp(world.vx, -MAX_VX, MAX_VX);
@@ -1559,11 +1639,20 @@ export function step(world: WorldState, dt: number, controls: Controls) {
 
   // Movimiento vertical.
   const wasGrounded = world.grounded;
-  world.vy += GRAVITY * delta;
+  // Caída más pesada que la subida: el salto se siente firme sin cambiar su altura.
+  world.vy += GRAVITY * (world.vy > 0 ? 1.3 : 1) * delta;
+  world.vy = Math.min(world.vy, 980);
   world.y += world.vy * delta;
   world.grounded = false;
   resolveVertical(world, previousBottom, previousTop);
-  if (wasGrounded && !world.grounded) world.coyote = 0.1;
+  if (world.jumpBuffer > 0) {
+    world.jumpBuffer -= delta;
+    if (world.grounded) {
+      world.jumpBuffer = 0;
+      jump(world);
+    }
+  }
+  if (wasGrounded && !world.grounded) world.coyote = 0.13;
   else world.coyote = Math.max(0, world.coyote - delta);
   if (world.grounded) {
     world.safeX = world.x;
@@ -1581,10 +1670,11 @@ export function step(world: WorldState, dt: number, controls: Controls) {
 
   // Caída al pozo.
   if (world.y > VIEW_H + 60) {
-    world.x = Math.max(60, world.safeX - 40);
-    world.y = world.safeY - 60;
+    world.x = world.safeX;
+    world.y = world.safeY - 24;
     world.vx = 0;
-    world.vy = -180;
+    world.vy = -120;
+    world.invulnerable = Math.max(world.invulnerable, 0.8);
     world.time = Math.max(0, world.time - 8);
     world.energy = Math.max(0, world.energy - 14);
     play(world, "fall");
@@ -1668,12 +1758,15 @@ export function step(world: WorldState, dt: number, controls: Controls) {
       if (enemy.boss) {
         if (enemy.hitCooldown <= 0) {
           enemy.hitCooldown = 0.45;
-          damageEnemy(world, enemy, 1, true);
+          damageEnemy(world, enemy, world.vy > 600 ? 2 : 1, true);
         }
       } else {
-        damageEnemy(world, enemy, 1, true);
+        damageEnemy(world, enemy, world.vy > 600 ? 2 : 1, true);
       }
-      world.vy = -372;
+      world.vy = world.vy > 600 ? -430 : -372;
+      // Sin esta gracia, al rebotar sobre un jefe alto el contacto del
+      // siguiente fotograma contaba como golpe recibido.
+      world.invulnerable = Math.max(world.invulnerable, 0.35);
       world.hitStop = world.reducedMotion ? 0 : 0.045;
       play(world, "stomp");
       spawnSlash(world, enemy.x + enemy.w / 2, enemy.y, "#ffffff");
@@ -1727,17 +1820,19 @@ export function step(world: WorldState, dt: number, controls: Controls) {
   const taken = world.collectibles.filter((item) => item.taken).length;
   const bossAlive = Boolean(world.boss?.alive);
   if (world.x > GATE_X) {
-    if (taken >= 2 && !bossAlive) {
+    const needed = requiredDocuments(world.levelIndex);
+    if (taken >= needed && !bossAlive) {
       world.status = "won";
       play(world, "win");
       world.events.push("level-won");
     } else {
       world.x = GATE_X - 6;
-      toast(
+      if (world.toastTime <= 0)
+        toast(
         world,
         bossAlive
           ? `${bossDefinition(world).name} aún protege la salida`
-          : "Recupera al menos 2 documentos para abrir la salida",
+          : `Recupera ${needed} de ${documentCount(world.levelIndex)} documentos para abrir la salida`,
         2,
       );
     }

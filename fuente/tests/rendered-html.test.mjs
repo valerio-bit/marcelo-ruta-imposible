@@ -40,9 +40,11 @@ test("renders the finished playable CV shell", async () => {
   assert.match(html, /<html lang="es">/);
   assert.match(html, /Marcelo: La Ruta Imposible/);
   assert.match(html, /UN CV QUE NO/);
-  assert.match(html, /Creación de Agentes en ChatGPT/);
-  assert.match(html, /Aprende Power BI/);
-  assert.match(html, /Habilidades Socioemocionales/);
+  assert.match(html, /Mapping public policy and business ecosystems/);
+  assert.match(html, /Multidisciplinary Reviews/);
+  assert.match(html, /Hackatón Nacional Transformagob 2026/);
+  assert.match(html, /Overall Strategy/);
+  assert.match(html, /Le Wagon/);
   assert.match(html, /EDICIÓN 2026/);
   assert.match(html, /ACTUALIZACIÓN JULIO DE 2026/);
   assert.match(html, /Nintendo/);
@@ -105,7 +107,9 @@ test("keeps original systems and adds the new ones in source", async () => {
   // Jefes con fases y telegrafía.
   assert.match(data, /phases:/);
   assert.match(engine, /telegraph/);
-  assert.match(render_, /barra de vida|Barra de vida/i);
+  assert.match(render_, /boss\.hp \/ boss\.maxHp/);
+  assert.match(render_, /drawLevelMotif/);
+  assert.match(render_, /drawAmbient/);
 
   // Cargas de E y persistencia.
   assert.match(engine, /world\.charges -= 1/);
@@ -159,4 +163,28 @@ test("keeps the promotional key art wired as Open Graph image", async () => {
   const layout = await source("layout.tsx");
   assert.match(layout, /og\.png/);
   assert.match(layout, /summary_large_image/);
+});
+
+
+test("los datos del CV coinciden con los certificados revisados", async () => {
+  const data = await source("cv-data.ts");
+  // Fechas e instituciones tomadas del documento, no de memoria.
+  assert.match(data, /Overall Strategy S\.A\.C/);
+  assert.match(data, /22 sep — 21 oct 2026/);
+  assert.match(data, /PCM-SGTD-2026-38-LEJQ4Y/);
+  assert.match(data, /Multidisciplinary Reviews — Malque Publishing/);
+  assert.match(data, /IRF26-MOQUEGUA-001/);
+  assert.match(data, /259 créditos/);
+  assert.match(data, /CLAD N\.° 58365/);
+  // Correcciones verificadas.
+  assert.match(data, /24 set — 25 nov 2024/);
+  assert.doesNotMatch(data, /«En Órbita» \(40 h\)",\s*issuer: "ProInnovate"/);
+});
+
+test("el retrato viaja incrustado, sin peticiones externas", async () => {
+  const portrait = await source("portrait.ts");
+  assert.match(portrait, /^\/\*\*/);
+  assert.match(portrait, /data:image\/jpeg;base64,/);
+  const game = await source("GameCV.tsx");
+  assert.match(game, /PORTRAIT/);
 });
