@@ -84,7 +84,7 @@ test("la campaña tiene siete niveles cronológicos con jefe obligatorio", () =>
     assert.ok(level.outro.length > 20, "cada nivel necesita escena de victoria");
     assert.ok(POWER_BY_ID.has(level.reward), "la recompensa debe ser un poder real");
     assert.ok(
-      level.documents.length >= 3 && level.documents.length <= 6,
+      level.documents.length >= 3 && level.documents.length <= 7,
       `el nivel ${index + 1} tiene ${level.documents.length} documentos`,
     );
     for (const attack of level.boss.phases.flatMap((phase) => phase.attacks)) {
@@ -738,4 +738,23 @@ test("el tiempo disponible baja conforme avanza la campaña", () => {
     );
   }
   assert.ok(levelTimeLimit(6, []) > 140, "pero sin volverse imposible");
+});
+
+test("el daño perdona al principio y castiga al final", () => {
+  const medir = (levelIndex) => {
+    const world = playable(levelIndex);
+    const walker = world.enemies.find((enemy) => enemy.kind === "walker");
+    const antes = world.energy;
+    world.x = walker.x;
+    world.y = walker.y;
+    world.vy = 0;
+    step(world, 1 / 60, NO_INPUT);
+    return antes - world.energy;
+  };
+  const primero = medir(0);
+  const ultimo = medir(6);
+  assert.ok(primero > 0 && ultimo > 0, "ambos niveles deben hacer daño");
+  assert.ok(ultimo > primero, "el nivel final debe doler más que el primero");
+  // Con 100 de energía debe hacer falta más de una decena de golpes al inicio.
+  assert.ok(100 / primero >= 10, `el nivel 1 aguanta solo ${(100 / primero).toFixed(1)} golpes`);
 });

@@ -17,7 +17,8 @@ comunicación digital, datos e inteligencia artificial. Cada nivel termina en un
 arena con un jefe que representa el obstáculo real de esa etapa, y cada poder
 que se desbloquea está respaldado por una certificación o un logro verificable.
 
-- **Publicado en 2026**: artículo científico en *Multidisciplinary Reviews*,
+- **Publicado en 2026**: el libro *Voces de Moquegua* (ISBN 978-612-47402-5-1),
+  un artículo científico en *Multidisciplinary Reviews*,
   1.er lugar en la Hackatón Nacional Transformagob (PCM) y el primer empleo
   dedicado a inteligencia artificial, todo dentro de los dos últimos niveles.
 - **7 jefes** con barra de vida, ataques anticipados y varias fases. «El Sesgo»
@@ -44,7 +45,7 @@ que se desbloquea está respaldado por una certificación o un logro verificable
 ## Cómo está hecho
 
 React 19, Next 16 sobre vinext, TypeScript y Canvas 2D. Toda la lógica de juego
-vive en un motor puro (`fuente/app/engine.ts`) cubierto por 63 pruebas
+vive en un motor puro (`fuente/app/engine.ts`) cubierto por 65 pruebas
 automatizadas que se ejecutan en Node; el sonido es sintetizado con Web Audio.
 
 La página publicada es un único archivo HTML con el CSS, el JavaScript y las
@@ -54,7 +55,7 @@ tipografías incrustados: **cero peticiones externas**.
 cd fuente
 npm ci
 npm run dev              # desarrollo en http://localhost:3000
-npm test                 # 63 pruebas de motor y render + build + HTML
+npm test                 # 65 pruebas de motor y render + build + HTML
 npm run build && npm run build:standalone
 ```
 

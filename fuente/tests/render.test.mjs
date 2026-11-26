@@ -18,6 +18,7 @@ import {
   createWorld,
   firePulse,
   jump,
+  releaseJump,
   step,
 } from "../app/engine.ts";
 import { drawWorld } from "../app/render.ts";
@@ -231,11 +232,43 @@ test("el jugador nunca queda encerrado entre bloques", () => {
       world.vx = 0;
       world.vy = 0;
       const startX = world.x;
-      for (let i = 0; i < 60; i += 1) step(world, 1 / 60, { left: false, right: true });
+      // Subir un peldaño es jugar, no quedar encerrado: se permite saltar.
+      for (let i = 0; i < 90; i += 1) {
+        if (world.grounded) jump(world);
+        step(world, 1 / 60, { left: false, right: true });
+      }
       assert.ok(
         world.x > startX + 8 || world.y > block.y,
         `atascado sobre el bloque (${block.x},${block.y}) del nivel ${levelIndex + 1}`,
       );
     }
+  }
+});
+
+
+test("el nivel se puede recorrer incluso dando solo toques cortos de salto", () => {
+  // Quien juega en celular suele tocar y soltar enseguida: el salto se corta.
+  for (let levelIndex = 0; levelIndex < LEVELS.length; levelIndex += 1) {
+    const world = playable(levelIndex, { charges: 0 });
+    world.reducedMotion = true;
+    world.invulnerable = Number.POSITIVE_INFINITY;
+    const dt = 1 / 60;
+    let atascado = 0;
+    let anterior = world.x;
+    let llego = false;
+    for (let i = 0; i < 70 / dt; i += 1) {
+      if (world.grounded) jump(world);
+      if (world.vy < -300 && i % 6 === 0) releaseJump(world);
+      step(world, dt, { left: false, right: true });
+      if (Math.abs(world.x - anterior) < 0.2) atascado += dt;
+      else atascado = 0;
+      anterior = world.x;
+      assert.ok(atascado < 4, `atascado en x=${Math.round(world.x)} del nivel ${levelIndex + 1}`);
+      if (world.x > ARENA_X + 40) {
+        llego = true;
+        break;
+      }
+    }
+    assert.ok(llego, `no se llegó a la arena del nivel ${levelIndex + 1} con saltos cortos`);
   }
 });

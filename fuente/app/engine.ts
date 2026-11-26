@@ -363,10 +363,12 @@ export function createBlocks(levelIndex: number): Block[] {
     make(1912, 318, false),
     make(1958, 318, true),
     make(2004, 318, true),
-    // Torre del cofre: se abre con E, con una caída fuerte o se salta encima.
+    // Torre del cofre: se abre con E, con una caída fuerte o se sube por la
+    // escalera. El peldaño sólido va delante para que ningún salto corto
+    // deje al jugador encerrado contra la torre.
+    make(2160, 422, false),
     make(2206, 422, true),
     make(2206, 376, true),
-    make(2252, 422, false),
     // Cobertura de la arena del jefe, fuera de la zona donde entra el jefe.
     make(2500, 318, true),
     make(2546, 318, false),
@@ -382,6 +384,7 @@ export function createBlocks(levelIndex: number): Block[] {
 const DOC_SPOTS = [
   { x: 336, y: 300 },
   { x: 868, y: 272 },
+  { x: 1150, y: 296 },
   { x: 1438, y: 196 },
   { x: 1690, y: 196 },
   { x: 2004, y: 188 },
@@ -391,21 +394,27 @@ const DOC_SPOTS = [
 /** Reparto por cantidad de documentos, para que nunca queden amontonados. */
 const DOC_SPREAD: Record<number, number[]> = {
   1: [0],
-  2: [0, 5],
-  3: [0, 2, 5],
-  4: [0, 2, 4, 5],
-  5: [0, 1, 2, 4, 5],
-  6: [0, 1, 2, 3, 4, 5],
+  2: [0, 6],
+  3: [0, 3, 6],
+  4: [0, 2, 4, 6],
+  5: [0, 1, 3, 5, 6],
+  6: [0, 1, 2, 4, 5, 6],
+  7: [0, 1, 2, 3, 4, 5, 6],
 };
 
 export function documentCount(levelIndex: number): number {
   return clamp(LEVELS[levelIndex].documents.length, 1, DOC_SPOTS.length);
 }
 
-/** Documentos necesarios para abrir la salida: dos tercios, mínimo 2. */
-export function requiredDocuments(levelIndex: number): number {
+/**
+ * Documentos necesarios para abrir la salida: dos tercios, mínimo 2.
+ * El libro coral «Voces de Moquegua» descuenta uno.
+ */
+export function requiredDocuments(levelIndex: number, owned: string[] = []): number {
   const total = documentCount(levelIndex);
-  return Math.min(total, Math.max(2, Math.ceil((total * 2) / 3)));
+  const base = Math.max(2, Math.ceil((total * 2) / 3));
+  const coral = owned.includes("voces") ? base - 1 : base;
+  return Math.min(total, Math.max(2, coral));
 }
 
 export function createCollectibles(levelIndex: number): Collectible[] {
@@ -698,6 +707,22 @@ export function createWorld(
 
 /* ───────────────────────── EFECTOS ───────────────────────── */
 
+/**
+ * Compacta una lista en el sitio. Evita crear un array nuevo por fotograma,
+ * que es lo que provocaba tirones del recolector de basura.
+ */
+function compact<T>(list: T[], keep: (item: T) => boolean) {
+  let write = 0;
+  for (let read = 0; read < list.length; read += 1) {
+    const item = list[read];
+    if (keep(item)) {
+      list[write] = item;
+      write += 1;
+    }
+  }
+  list.length = write;
+}
+
 function play(world: WorldState, name: string) {
   if (world.sounds.length < 12) world.sounds.push(name);
 }
@@ -804,7 +829,9 @@ export function jump(world: WorldState) {
 
 /** Soltar el salto lo corta: saltos cortos y largos con la misma tecla. */
 export function releaseJump(world: WorldState) {
-  if (world.vy < -250) world.vy = -250;
+  // El corte nunca baja de 57 px de altura: siempre alcanza un peldaño de 46,
+  // aunque el toque sea de un solo fotograma.
+  if (world.vy < -420) world.vy = -420;
 }
 
 /**
@@ -950,7 +977,7 @@ export function firePulse(world: WorldState) {
 
   if (profile.clearsProjectiles) {
     const before = world.projectiles.length;
-    world.projectiles = world.projectiles.filter((projectile) => {
+    compact(world.projectiles, (projectile) => {
       if (!projectile.hostile) return true;
       const distance = Math.hypot(projectile.x - cx, projectile.y - cy);
       if (distance <= profile.radius) {
@@ -1021,8 +1048,17 @@ export function grantPower(world: WorldState, powerId: string) {
   play(world, "power");
 }
 
-function hurtPlayer(world: WorldState, amount: number, fromX: number, label: string) {
+/**
+ * El daño escala con el nivel: los primeros compases perdonan para que
+ * cualquiera pueda recorrer el CV, y el final sí castiga.
+ */
+function damageScale(levelIndex: number) {
+  return 0.7 + levelIndex * 0.065;
+}
+
+function hurtPlayer(world: WorldState, rawAmount: number, fromX: number, label: string) {
   if (world.invulnerable > 0) return;
+  const amount = Math.max(4, Math.round(rawAmount * damageScale(world.levelIndex)));
   if (world.guardReady) {
     world.guardReady = false;
     world.invulnerable = 1.1;
@@ -1663,7 +1699,7 @@ export function step(world: WorldState, dt: number, controls: Controls) {
   if (!world.reducedMotion && Math.abs(world.vx) > 190) {
     world.trail.push({ x: world.x, y: world.y, life: 0.24 });
   }
-  world.trail = world.trail.filter((point) => {
+  compact(world.trail, (point) => {
     point.life -= delta;
     return point.life > 0;
   });
@@ -1804,7 +1840,7 @@ export function step(world: WorldState, dt: number, controls: Controls) {
   }
 
   // Partículas.
-  world.particles = world.particles.filter((particle) => {
+  compact(world.particles, (particle) => {
     particle.life -= delta;
     if (particle.kind === "ring" || particle.kind === "slash") return particle.life > 0;
     particle.x += particle.vx * delta;
@@ -1820,7 +1856,7 @@ export function step(world: WorldState, dt: number, controls: Controls) {
   const taken = world.collectibles.filter((item) => item.taken).length;
   const bossAlive = Boolean(world.boss?.alive);
   if (world.x > GATE_X) {
-    const needed = requiredDocuments(world.levelIndex);
+    const needed = requiredDocuments(world.levelIndex, world.owned);
     if (taken >= needed && !bossAlive) {
       world.status = "won";
       play(world, "win");

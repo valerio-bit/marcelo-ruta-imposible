@@ -393,6 +393,16 @@ export const POWERS: PowerDef[] = [
     year: "Ago—Sep 2026",
   },
   {
+    id: "voces",
+    kind: "passive",
+    glyph: "📖",
+    name: "Voces de Moquegua",
+    effect: "Obra coral: la salida se abre con un documento menos (mínimo 2).",
+    source: "Libro «Voces de Moquegua» — ISBN 978-612-47402-5-1",
+    issuer: "Anglo American Quellaveco S.A.",
+    year: "15 abr 2026",
+  },
+  {
     id: "derecho",
     kind: "passive",
     glyph: "§",
@@ -1061,6 +1071,17 @@ export const LEVELS: LevelDef[] = [
         power: "derecho",
       },
       {
+        id: "libro-2026",
+        icon: "📖",
+        category: "Publicación",
+        title: "Libro «Voces de Moquegua»",
+        issuer: "Anglo American Quellaveco S.A.",
+        year: "15 abr 2026",
+        detail:
+          "Obra colectiva publicada con ISBN 978-612-47402-5-1, registrada en la Agencia Peruana de ISBN de la Biblioteca Nacional del Perú, junto a Estremadoyro, Ponce, Colque, Rivero y Bonifacio.",
+        power: "voces",
+      },
+      {
         id: "mardebecas-2026",
         icon: "11K",
         category: "Trabajo",
@@ -1461,6 +1482,19 @@ export const ARCHIVE: ArchiveEntry[] = [
   },
 
   {
+    group: "Publicaciones",
+    title: "Libro «Voces de Moquegua» — ISBN 978-612-47402-5-1 (obra colectiva)",
+    issuer: "Anglo American Quellaveco S.A. — registrado en la Agencia Peruana de ISBN (BNP)",
+    year: "15 abr 2026",
+  },
+  {
+    group: "Publicaciones",
+    title:
+      "Artículo «Mapping public policy and business ecosystems: A bibliometric review (2000–2024)»",
+    issuer: "Multidisciplinary Reviews — Malque Publishing",
+    year: "20 nov 2026",
+  },
+  {
     group: "Reconocimientos",
     title: "1.er lugar — Hackatón Nacional Transformagob 2026 (PCM-SGTD-2026-38-LEJQ4Y)",
     issuer: "Presidencia del Consejo de Ministros — Secretaría de Gobierno y Transformación Digital",
@@ -1557,6 +1591,14 @@ export const HIGHLIGHTS: Highlight[] = [
       "Revisión bibliométrica publicada como coautor. Palabras clave: gobernanza, emprendimiento, análisis bibliométrico.",
   },
   {
+    tag: "Libro publicado",
+    title: "Voces de Moquegua — ISBN 978-612-47402-5-1",
+    issuer: "Anglo American Quellaveco S.A. · Agencia Peruana de ISBN (BNP)",
+    year: "15 abr 2026",
+    detail:
+      "Obra colectiva registrada en el catálogo de la Biblioteca Nacional del Perú.",
+  },
+  {
     tag: "Primer lugar nacional",
     title: "Hackatón Nacional Transformagob 2026",
     issuer: "Presidencia del Consejo de Ministros — SGTD",
@@ -1592,7 +1634,7 @@ export const PROFILE_BLOCKS = [
   },
   {
     label: "Credenciales",
-    text: "Licenciado colegiado y habilitado (CLAD 58365), egresado de Derecho y coautor de un artículo científico publicado en 2026.",
+    text: "Licenciado colegiado y habilitado (CLAD 58365), egresado de Derecho, coautor de un libro con ISBN y de un artículo científico, ambos publicados en 2026.",
   },
   {
     label: "Formación 2026",

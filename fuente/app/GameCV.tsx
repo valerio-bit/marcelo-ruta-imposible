@@ -334,7 +334,7 @@ export function GameCV() {
                 ...current,
                 collected: { ...current.collected, [level.id]: [...already, id] },
                 powers: [...new Set([...current.powers, ...world.owned])],
-                charges: world.charges,
+                  charges: world.charges,
               });
             }
           }
@@ -361,7 +361,7 @@ export function GameCV() {
               : [...current.completed, world.levelIndex].sort((a, b) => a - b),
             powers: [...new Set([...current.powers, ...world.owned])],
             charges: world.charges,
-            equipped: world.equipped,
+              equipped: world.equipped,
           });
           setStatus("won");
         }
@@ -375,19 +375,27 @@ export function GameCV() {
       drawWorld(context, world);
 
       hudAccumulator += delta;
-      if (hudAccumulator > 0.15) {
+      if (hudAccumulator > 0.2) {
         hudAccumulator = 0;
-        setHud({
+        // Solo se avisa a React cuando algo cambió de verdad: sin esto, el
+        // árbol entero se repintaba varias veces por segundo sin motivo.
+        setHud((previous) => {
+          const next = {
           charges: world.charges,
           equipped: world.equipped,
-          energy: Math.round(world.energy),
-          maxEnergy: world.maxEnergy,
-          time: Math.ceil(world.time),
-          documents: world.collectibles.filter((item) => item.taken).length,
-          bossHp: world.boss ? world.boss.hp / world.boss.maxHp : 0,
-          bossPhase: world.boss?.phaseIndex ?? 0,
-          bossAlive: Boolean(world.boss?.alive),
-          arena: world.arenaEntered,
+            energy: Math.round(world.energy),
+            maxEnergy: world.maxEnergy,
+            time: Math.ceil(world.time),
+            documents: world.collectibles.filter((item) => item.taken).length,
+            bossHp: world.boss ? world.boss.hp / world.boss.maxHp : 0,
+            bossPhase: world.boss?.phaseIndex ?? 0,
+            bossAlive: Boolean(world.boss?.alive),
+            arena: world.arenaEntered,
+          };
+          const igual = (Object.keys(next) as (keyof typeof next)[]).every(
+            (clave) => previous[clave] === next[clave],
+          );
+          return igual ? previous : next;
         });
       }
 

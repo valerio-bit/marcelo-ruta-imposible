@@ -51,6 +51,43 @@ function cachedLinear(
   return gradient;
 }
 
+/**
+ * Capas que no dependen de la cámara se dibujan una sola vez en un lienzo
+ * aparte y luego se vuelcan de golpe. En Node (pruebas) no hay `document`,
+ * así que se devuelve null y se dibuja de la forma directa.
+ */
+type Baked = { width: number; height: number } | null;
+const bakedLayers = new Map<string, Baked>();
+
+function bake(key: string, paint: (target: CanvasRenderingContext2D) => void): Baked {
+  if (bakedLayers.has(key)) return bakedLayers.get(key) ?? null;
+  if (typeof document === "undefined") {
+    bakedLayers.set(key, null);
+    return null;
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = VIEW_W;
+  canvas.height = VIEW_H;
+  const target = canvas.getContext("2d");
+  if (!target) {
+    bakedLayers.set(key, null);
+    return null;
+  }
+  paint(target);
+  bakedLayers.set(key, canvas);
+  return canvas;
+}
+
+let vignetteCache: CanvasGradient | null = null;
+function cachedVignette(ctx: CanvasRenderingContext2D) {
+  if (vignetteCache && typeof document === "undefined") return vignetteCache;
+  const gradient = ctx.createRadialGradient(480, 270, 290, 480, 270, 620);
+  gradient.addColorStop(0, "#02030a00");
+  gradient.addColorStop(1, "#02030a");
+  vignetteCache = gradient;
+  return gradient;
+}
+
 function rounded(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -78,10 +115,6 @@ function glow(
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.fill();
-  ctx.globalAlpha = alpha * 0.55;
-  ctx.beginPath();
-  ctx.arc(x, y, radius * 0.6, 0, Math.PI * 2);
-  ctx.fill();
   ctx.restore();
 }
 
@@ -104,19 +137,26 @@ function haloText(
 
 /* ───────────────────────── FONDO ───────────────────────── */
 
+function paintSky(target: CanvasRenderingContext2D, level: LevelDef, inArena: boolean) {
+  const gradient = target.createLinearGradient(0, 0, 0, VIEW_H);
+  gradient.addColorStop(0, inArena ? "#04030a" : level.palette[0]);
+  gradient.addColorStop(0.62, inArena ? level.palette[0] : level.palette[1]);
+  gradient.addColorStop(1, "#05060c");
+  target.fillStyle = gradient;
+  target.fillRect(0, 0, VIEW_W, VIEW_H);
+  // Aurora: dos manchas de energía, la firma de color del juego.
+  glow(target, 760, 150, 300, "#8d64ff", 0.13);
+  glow(target, 190, 320, 240, level.palette[2], 0.09);
+}
+
 function drawSky(ctx: CanvasRenderingContext2D, level: LevelDef, inArena: boolean) {
   const key = `sky-${level.id}-${inArena ? "arena" : "ruta"}`;
-  ctx.fillStyle = cachedLinear(ctx, key, 0, 0, 0, VIEW_H, [
-    [0, inArena ? "#04030a" : level.palette[0]],
-    [0.62, inArena ? level.palette[0] : level.palette[1]],
-    [1, "#05060c"],
-  ]);
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-
-  // Aurora: dos manchas de energía, la firma de color del juego.
-  const pulse = calm ? 0.5 : 0.5 + Math.sin(t * 0.6) * 0.5;
-  glow(ctx, 760, 150, 300, "#8d64ff", 0.1 + pulse * 0.06);
-  glow(ctx, 190, 320, 240, level.palette[2], 0.07 + (1 - pulse) * 0.05);
+  const layer = bake(key, (target) => paintSky(target, level, inArena));
+  if (layer) {
+    ctx.drawImage(layer as CanvasImageSource, 0, 0);
+    return;
+  }
+  paintSky(ctx, level, inArena);
 }
 
 function drawStars(ctx: CanvasRenderingContext2D, level: LevelDef, cameraX: number) {
@@ -446,8 +486,8 @@ function drawLevelMotif(
     }
     default: {
       // Cámara del algoritmo: haces de luz violeta cayendo del techo.
-      for (let i = -1; i < 14; i += 1) {
-        const x = i * 96 - (offset % 96);
+      for (let i = -1; i < 7; i += 1) {
+        const x = i * 192 - (offset % 192);
         const sway = calm ? 0 : Math.sin(t * 0.4 + i) * 10;
         ctx.globalAlpha = 0.12 + (i % 3) * 0.05;
         ctx.fillStyle = "#8d64ff";
@@ -468,9 +508,8 @@ function drawLevelMotif(
 /** Niebla en tres bandas: da profundidad sin coste real. */
 function drawFog(ctx: CanvasRenderingContext2D, cameraX: number) {
   const bands: [number, number, number][] = [
-    [300, 0.12, 0.2],
-    [380, 0.22, 0.26],
-    [444, 0.4, 0.32],
+    [336, 0.16, 0.22],
+    [444, 0.4, 0.3],
   ];
   ctx.save();
   for (const [y, speed, alpha] of bands) {
@@ -491,7 +530,7 @@ function drawFog(ctx: CanvasRenderingContext2D, cameraX: number) {
 function drawAmbient(ctx: CanvasRenderingContext2D, cameraX: number) {
   if (calm) return;
   ctx.save();
-  for (let i = 0; i < 34; i += 1) {
+  for (let i = 0; i < 22; i += 1) {
     const speed = 10 + (i % 5) * 4;
     const x = ((i * 137 - cameraX * 0.5) % (VIEW_W + 60)) - 30;
     const y = ((VIEW_H + 40 - ((t * speed + i * 67) % (VIEW_H + 80))) + VIEW_H) % VIEW_H;
@@ -626,7 +665,9 @@ function drawBlocks(ctx: CanvasRenderingContext2D, world: WorldState, level: Lev
         ctx.stroke();
       }
       ctx.restore();
-      glow(ctx, x + block.w / 2, y + block.h / 2, 30, "#ffc65c", calm ? 0.1 : 0.08 + Math.sin(t * 2 + block.x) * 0.04);
+      if (!calm && block.hits > 0) {
+        glow(ctx, x + block.w / 2, y + block.h / 2, 26, "#ffc65c", 0.14);
+      }
     } else {
       // Bloque indestructible: acero frío, remaches y sin brillo cálido.
       ctx.fillStyle = cachedLinear(ctx, "block-solid", 0, y, 0, y + block.h, [
@@ -701,6 +742,177 @@ function drawCollectibles(ctx: CanvasRenderingContext2D, world: WorldState, leve
 
 /* ───────────────────────── ENTIDADES ───────────────────────── */
 
+/**
+ * Animación tipo stop motion: en vez de interpolar, el dibujo salta entre
+ * poses discretas a 8 por segundo. Da el pulso entrecortado de la animación
+ * cuadro a cuadro en lugar del deslizamiento habitual de una web.
+ */
+const STOP_FPS = 8;
+// Tablas de poses: constantes de módulo para no asignar arrays por fotograma.
+const BOB = [0, -3, 0, 3];
+const SQUASH_SOFT = [0, 0.05, 0, -0.05];
+const SQUASH_WALK = [0, 0.06, 0, -0.04];
+const HOP_SQUASH = [0.18, -0.12, -0.04, 0.08];
+const HOP_LIFT = [0, -5, -3, 0];
+const SWAY = [-3, 0, 3, 0];
+const TREMBLE = [0, 1, 0, -1];
+const FLEX = [0, 2, 0, -2];
+const LEAN = [-0.06, 0, 0.06, 0];
+const ARM = [0, -2, 0, 2];
+const STAMP = [0, -7, -3, 0];
+const WARN_ALPHA = [0.3, 0.9, 0.4, 0.8];
+const BOUNCE = [0, -1.5, 0, -1];
+const BREATHE = [0, 0.03, 0, -0.02];
+function pose(seed: number, frames = 4) {
+  if (calm) return 0;
+  return (Math.floor(t * STOP_FPS) + seed) % frames;
+}
+
+/** Mezcla un color hacia el blanco (k > 0) o hacia el negro (k < 0). */
+function tint(hex: string, k: number) {
+  const n = parseInt(hex.slice(1), 16);
+  const mix = (c: number) =>
+    Math.round(k >= 0 ? c + (255 - c) * k : c * (1 + k))
+      .toString(16)
+      .padStart(2, "0");
+  return "#" + mix((n >> 16) & 255) + mix((n >> 8) & 255) + mix(n & 255);
+}
+
+type Mood = "calm" | "alert" | "angry" | "hurt";
+
+function moodOf(enemy: Enemy): Mood {
+  if (enemy.hurt > 0) return "hurt";
+  if (enemy.aim > 0 || enemy.telegraph > 0) return "alert";
+  if (enemy.kind === "zombie") return enemy.state === "active" ? "angry" : "calm";
+  if (enemy.kind === "walker" || enemy.kind === "spawnling") return "angry";
+  return "calm";
+}
+
+/** Sombra proyectada: se achica cuando la criatura está en el aire. */
+function castShadow(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  groundY: number,
+  w: number,
+  lift: number,
+) {
+  const k = Math.max(0.35, 1 - Math.abs(lift) / 160);
+  ctx.save();
+  ctx.globalAlpha = 0.34 * k;
+  ctx.fillStyle = "#03040a";
+  ctx.beginPath();
+  ctx.ellipse(cx, groundY, (w / 2) * k, 5 * k, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Ojos y boca según el estado. Es lo que convierte una mancha de color en un
+ * personaje: el jugador lee la intención antes de mirar la barra de vida.
+ */
+function face(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  spread: number,
+  mood: Mood,
+  facing: number,
+  frame: number,
+) {
+  const blink = mood === "calm" && frame === 3;
+  const eyeW = mood === "alert" ? 7 : 6;
+  const eyeH = blink ? 1.5 : mood === "alert" ? 7 : mood === "angry" ? 4 : 5;
+
+  for (const side of [-1, 1]) {
+    const ex = cx + side * spread;
+    if (mood === "hurt") {
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(ex - 4, cy - 4);
+      ctx.lineTo(ex + 4, cy + 4);
+      ctx.moveTo(ex + 4, cy - 4);
+      ctx.lineTo(ex - 4, cy + 4);
+      ctx.stroke();
+      continue;
+    }
+    ctx.fillStyle = "#f6fbff";
+    ctx.beginPath();
+    ctx.ellipse(ex, cy, eyeW / 2, eyeH / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (!blink) {
+      ctx.fillStyle = "#0a0a14";
+      ctx.beginPath();
+      ctx.arc(ex + facing * 1.4, cy + (mood === "alert" ? -0.6 : 0.4), 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (mood === "angry" || mood === "alert") {
+      ctx.strokeStyle = "#07070f";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(ex - side * 5, cy - 7 + (mood === "angry" ? side * -1.5 : 0));
+      ctx.lineTo(ex + side * 5, cy - 9 + (mood === "angry" ? side * 2.5 : 0));
+      ctx.stroke();
+    }
+  }
+
+  ctx.strokeStyle = "#07070f";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  if (mood === "angry") {
+    ctx.moveTo(cx - 7, cy + 10);
+    ctx.lineTo(cx - 3, cy + 13);
+    ctx.lineTo(cx + 1, cy + 10);
+    ctx.lineTo(cx + 5, cy + 13);
+    ctx.lineTo(cx + 8, cy + 10);
+  } else if (mood === "alert") {
+    ctx.ellipse(cx, cy + 11, 3.4, 4.2, 0, 0, Math.PI * 2);
+  } else if (mood === "hurt") {
+    ctx.moveTo(cx - 7, cy + 12);
+    ctx.quadraticCurveTo(cx, cy + 7, cx + 7, cy + 12);
+  } else {
+    ctx.moveTo(cx - 6, cy + 11);
+    ctx.lineTo(cx + 6, cy + 11);
+  }
+  ctx.stroke();
+}
+
+/** Cuerpo con volumen: base oscura, masa, luz superior y filo de contraluz. */
+function volume(
+  ctx: CanvasRenderingContext2D,
+  draw: (target: CanvasRenderingContext2D) => void,
+  base: string,
+  rim: string,
+) {
+  ctx.save();
+  ctx.translate(2.5, 3);
+  ctx.fillStyle = tint(base, -0.62);
+  draw(ctx);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = base;
+  draw(ctx);
+  ctx.fill();
+
+  if (!calm) {
+    ctx.save();
+    draw(ctx);
+    ctx.clip();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = tint(base, 0.42);
+    ctx.beginPath();
+    ctx.ellipse(-2, -8, 28, 17, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.strokeStyle = rim;
+  ctx.lineWidth = 1.6;
+  draw(ctx);
+  ctx.stroke();
+}
+
 function drawEnemy(
   ctx: CanvasRenderingContext2D,
   enemy: Enemy,
@@ -710,19 +922,25 @@ function drawEnemy(
   if (!enemy.alive) return;
   const x = enemy.x - cameraX;
   if (x < -140 || x > VIEW_W + 140) return;
+  const frame = pose(enemy.id);
+  const mood = moodOf(enemy);
+  const flash = enemy.hurt > 0 && Math.floor(enemy.hurt * 40) % 2 === 0;
+
   ctx.save();
   ctx.translate(x, enemy.y);
-  if (enemy.hurt > 0) ctx.globalAlpha = 0.55 + Math.sin(enemy.hurt * 60) * 0.35;
 
   switch (enemy.kind) {
     case "flyer": {
-      // Dron hexagonal con aspas de cuchilla y ojo violeta.
-      const spin = calm ? 0 : t * 11;
-      ctx.fillStyle = `${level.palette[3]}cc`;
+      // Dron: las aspas saltan entre cuatro posiciones fijas, no giran suave.
+      const bob = BOB[frame];
+      castShadow(ctx, enemy.w / 2, GROUND_Y - enemy.y, enemy.w, GROUND_Y - enemy.y);
+      ctx.translate(0, bob);
+      const blade = (frame * Math.PI) / 4;
+      ctx.fillStyle = level.palette[3] + "cc";
       for (const side of [-1, 1]) {
         ctx.save();
         ctx.translate(enemy.w / 2, enemy.h / 2 - 10);
-        ctx.rotate(side * 0.5 + Math.sin(spin) * 0.25);
+        ctx.rotate(side * 0.55 + blade);
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.lineTo(side * 34, -5);
@@ -731,40 +949,35 @@ function drawEnemy(
         ctx.fill();
         ctx.restore();
       }
-      ctx.fillStyle = cachedLinear(ctx, "flyer", 0, 0, 0, enemy.h, [
-        [0, "#2b3450"],
-        [1, "#0b0f1a"],
-      ]);
-      ctx.beginPath();
-      for (let i = 0; i < 6; i += 1) {
-        const angle = (Math.PI / 3) * i - Math.PI / 6;
-        const px = enemy.w / 2 + Math.cos(angle) * (enemy.w / 2);
-        const py = enemy.h / 2 + Math.sin(angle) * (enemy.h / 2);
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = level.palette[2];
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      const hex = (c: CanvasRenderingContext2D) => {
+        c.beginPath();
+        for (let i = 0; i < 6; i += 1) {
+          const angle = (Math.PI / 3) * i - Math.PI / 6;
+          const px = enemy.w / 2 + Math.cos(angle) * (enemy.w / 2);
+          const py = enemy.h / 2 + Math.sin(angle) * (enemy.h / 2);
+          if (i === 0) c.moveTo(px, py);
+          else c.lineTo(px, py);
+        }
+        c.closePath();
+      };
+      volume(ctx, hex, flash ? "#ffffff" : "#2b3450", level.palette[2]);
+      face(ctx, enemy.w / 2, enemy.h / 2 - 2, 9, mood, enemy.facing, frame);
       ctx.restore();
-      glow(ctx, x + enemy.w / 2, enemy.y + enemy.h / 2, 13, "#b57bff", 0.5);
+      glow(ctx, x + enemy.w / 2, enemy.y + enemy.h / 2 + bob, 15, "#b57bff", 0.42);
       return;
     }
+
     case "ranged": {
-      // Torreta de expedientes: el aviso de disparo es visible y sonoro.
+      // Torreta: retrocede y se encoge al disparar.
       const charge = enemy.aim > 0 ? 1 - enemy.aim / 0.7 : 0;
-      ctx.strokeStyle = "#ffb15c66";
-      ctx.lineWidth = 4;
-      rounded(ctx, 0, 6, enemy.w, enemy.h - 6, 9);
-      ctx.stroke();
-      ctx.fillStyle = "#141a2b";
-      rounded(ctx, 2, 8, enemy.w - 4, enemy.h - 8, 8);
-      ctx.fill();
-      ctx.strokeStyle = "#ff9d6c";
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      const recoil = enemy.aim > 0 && frame % 2 === 1 ? -2 : 0;
+      castShadow(ctx, enemy.w / 2, enemy.h + 4, enemy.w, 0);
+      ctx.translate(enemy.facing * recoil, 0);
+      const body = (c: CanvasRenderingContext2D) => {
+        c.beginPath();
+        c.roundRect(2, 8, enemy.w - 4, enemy.h - 8, 9);
+      };
+      volume(ctx, body, flash ? "#ffffff" : "#243049", "#ff9d6c");
       ctx.fillStyle = "#0a0e18";
       ctx.fillRect(enemy.facing > 0 ? enemy.w - 6 : -12, 16, 18, 10);
       if (enemy.aim > 0) {
@@ -774,7 +987,7 @@ function drawEnemy(
         ctx.arc(enemy.w / 2 + enemy.facing * 20, 21, 5 + charge * 6, 0, Math.PI * 2);
         ctx.fill();
         ctx.globalAlpha = 1;
-        ctx.strokeStyle = `#ffb15c${charge > 0.5 ? "aa" : "55"}`;
+        ctx.strokeStyle = charge > 0.5 ? "#ffb15ccc" : "#ffb15c66";
         ctx.lineWidth = 2;
         ctx.setLineDash([6, 6]);
         ctx.beginPath();
@@ -783,81 +996,109 @@ function drawEnemy(
         ctx.stroke();
         ctx.setLineDash([]);
       }
-      ctx.fillStyle = "#ffd9a8";
-      ctx.fillRect(enemy.w * 0.24, enemy.h * 0.42, 7, 5);
-      ctx.fillRect(enemy.w * 0.6, enemy.h * 0.42, 7, 5);
+      face(ctx, enemy.w / 2, enemy.h * 0.48, 8, mood, enemy.facing, frame);
       break;
     }
+
     case "summoner": {
-      // Invocador aéreo: colmena flotante que suelta criaturas.
-      ctx.fillStyle = "#1a1030";
-      ctx.beginPath();
-      ctx.ellipse(enemy.w / 2, enemy.h / 2, enemy.w / 2, enemy.h / 2, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#c9b6ff";
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      // Colmena: late y abre la compuerta en dos cuadros.
+      const squash = SQUASH_SOFT[frame];
+      castShadow(ctx, enemy.w / 2, GROUND_Y - enemy.y, enemy.w, GROUND_Y - enemy.y);
+      ctx.translate(enemy.w / 2, enemy.h / 2);
+      ctx.scale(1 + squash, 1 - squash);
+      ctx.translate(-enemy.w / 2, -enemy.h / 2);
+      const shell = (c: CanvasRenderingContext2D) => {
+        c.beginPath();
+        c.ellipse(enemy.w / 2, enemy.h / 2, enemy.w / 2, enemy.h / 2, 0, 0, Math.PI * 2);
+      };
+      volume(ctx, shell, flash ? "#ffffff" : "#2a1750", "#c9b6ff");
       const open = enemy.aim > 0 ? 1 - enemy.aim / 0.65 : 0;
       ctx.fillStyle = "#08050f";
       ctx.beginPath();
       ctx.ellipse(enemy.w / 2, enemy.h - 6, 12 + open * 10, 6 + open * 5, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#e0d4ff";
+      ctx.strokeStyle = "#c9b6ff99";
+      ctx.lineWidth = 2;
       for (let i = 0; i < 3; i += 1) {
+        const sway = SWAY[(frame + i) % 4];
         ctx.beginPath();
-        ctx.arc(14 + i * 17, enemy.h / 2 - 6, 3.4, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      if (enemy.aim > 0) {
-        ctx.globalAlpha = 0.4 + open * 0.5;
-        ctx.strokeStyle = "#c9b6ff";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(enemy.w / 2, enemy.h - 4, 16 + open * 14, 0, Math.PI);
+        ctx.moveTo(14 + i * 17, enemy.h - 4);
+        ctx.quadraticCurveTo(
+          14 + i * 17 + sway,
+          enemy.h + 6,
+          14 + i * 17 + sway * 2,
+          enemy.h + 14,
+        );
         ctx.stroke();
-        ctx.globalAlpha = 1;
       }
+      face(ctx, enemy.w / 2, enemy.h * 0.42, 11, mood, enemy.facing, frame);
       break;
     }
+
     case "spawnling": {
-      ctx.fillStyle = "#5b3f8f";
-      ctx.beginPath();
-      ctx.ellipse(enemy.w / 2, enemy.h / 2, enemy.w / 2, enemy.h / 2, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#d8c7ff";
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
+      // Criatura: ciclo de salto en cuatro poses (agacha, impulsa, estira, cae).
+      const squash = HOP_SQUASH[frame];
+      const lift = HOP_LIFT[frame];
+      castShadow(ctx, enemy.w / 2, enemy.h + 3, enemy.w, lift * 4);
+      ctx.translate(0, lift);
+      ctx.translate(enemy.w / 2, enemy.h);
+      ctx.scale(1 + squash, 1 - squash);
+      ctx.translate(-enemy.w / 2, -enemy.h);
+      const blob = (c: CanvasRenderingContext2D) => {
+        c.beginPath();
+        c.ellipse(enemy.w / 2, enemy.h / 2, enemy.w / 2, enemy.h / 2, 0, 0, Math.PI * 2);
+      };
+      volume(ctx, blob, flash ? "#ffffff" : "#6b49a8", "#d8c7ff");
       ctx.fillStyle = "#1a1030";
-      for (let i = 0; i < 4; i += 1) ctx.fillRect(4 + i * 7, enemy.h - 4, 3, 5);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(enemy.w * 0.24, enemy.h * 0.36, 5, 4);
-      ctx.fillRect(enemy.w * 0.58, enemy.h * 0.36, 5, 4);
+      for (let i = 0; i < 4; i += 1) {
+        const paso = (frame + i) % 2 === 0 ? 0 : 2;
+        ctx.fillRect(4 + i * 7, enemy.h - 4 + paso, 3, 5);
+      }
+      face(ctx, enemy.w / 2, enemy.h * 0.42, 6, mood, enemy.facing, frame);
       break;
     }
+
     case "zombie": {
       if (enemy.state === "buried") {
-        ctx.fillStyle = "#1a1a22";
+        ctx.fillStyle = "#15151c";
         ctx.beginPath();
         ctx.ellipse(enemy.w / 2, enemy.h - 2, 20, 6, 0, 0, Math.PI * 2);
         ctx.fill();
+        // Grietas en la tierra: se ve que algo hay antes de que salga la mano.
+        ctx.strokeStyle = "#2f2f3c";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(enemy.w / 2 - 14, enemy.h - 2);
+        ctx.lineTo(enemy.w / 2 - 4, enemy.h - 6);
+        ctx.lineTo(enemy.w / 2 + 6, enemy.h - 1);
+        ctx.stroke();
         break;
       }
       if (enemy.state === "warning") {
-        // Aviso: solo la mano, 2 s, sin daño.
+        // Aviso: solo la mano, 2 s, sin daño. Los dedos tiemblan por cuadros.
         const grow = 1 - enemy.timer / 2;
         ctx.fillStyle = "#221c18";
         ctx.beginPath();
         ctx.ellipse(enemy.w / 2, enemy.h, 22, 7, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = "#7f9a6f";
         const handH = 10 + grow * 26;
-        rounded(ctx, enemy.w / 2 - 6, enemy.h - handH, 12, handH, 5);
-        ctx.fill();
+        const tremble = TREMBLE[frame];
+        ctx.save();
+        ctx.translate(tremble, 0);
+        const hand = (c: CanvasRenderingContext2D) => {
+          c.beginPath();
+          c.roundRect(enemy.w / 2 - 6, enemy.h - handH, 12, handH, 5);
+        };
+        volume(ctx, hand, "#7f9a6f", "#c3e0ae");
         for (let i = 0; i < 3; i += 1) {
-          rounded(ctx, enemy.w / 2 - 7 + i * 6, enemy.h - handH - 7, 4, 9, 2);
+          const flex = FLEX[(frame + i) % 4];
+          ctx.fillStyle = tint("#7f9a6f", 0.12);
+          ctx.beginPath();
+          ctx.roundRect(enemy.w / 2 - 7 + i * 6, enemy.h - handH - 7 + flex, 4, 9, 2);
           ctx.fill();
         }
-        ctx.globalAlpha = calm ? 0.6 : 0.4 + Math.sin(t * 11) * 0.3;
+        ctx.restore();
+        ctx.globalAlpha = calm ? 0.65 : WARN_ALPHA[frame];
         ctx.strokeStyle = "#ffe082";
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -865,62 +1106,74 @@ function drawEnemy(
         ctx.stroke();
         ctx.globalAlpha = 1;
         ctx.fillStyle = "#ffe082";
-        ctx.font = "800 12px Geist Mono, monospace";
+        ctx.font = "800 13px Geist Mono, monospace";
         ctx.textAlign = "center";
-        haloText(ctx, "!", enemy.w / 2, enemy.h - handH - 12, 3);
+        haloText(ctx, "!", enemy.w / 2, enemy.h - handH - 14, 3);
         break;
       }
       const rise = enemy.state === "rising" ? 1 - enemy.timer / 0.36 : 1;
       ctx.translate(0, (1 - rise) * enemy.h);
-      ctx.fillStyle = "#3f4a35";
-      rounded(ctx, 3, 6, enemy.w - 6, enemy.h - 6, 7);
+      castShadow(ctx, enemy.w / 2, enemy.h + 2, enemy.w, 0);
+      // Caminar a tirones: el cuerpo se inclina de lado a lado.
+      const lean = LEAN[frame] * enemy.facing;
+      ctx.translate(enemy.w / 2, enemy.h);
+      ctx.rotate(lean);
+      ctx.translate(-enemy.w / 2, -enemy.h);
+      const torso = (c: CanvasRenderingContext2D) => {
+        c.beginPath();
+        c.roundRect(3, 6, enemy.w - 6, enemy.h - 6, 7);
+      };
+      volume(ctx, torso, flash ? "#ffffff" : "#44512f", "#9ec47c");
+      ctx.fillStyle = tint("#7f9a6f", -0.1);
+      ctx.beginPath();
+      ctx.roundRect(
+        enemy.facing > 0 ? enemy.w - 10 : -10,
+        12 + ARM[frame],
+        16,
+        8,
+        4,
+      );
       ctx.fill();
-      ctx.strokeStyle = "#8fb27a";
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
-      ctx.fillStyle = "#7f9a6f";
-      rounded(ctx, enemy.facing > 0 ? enemy.w - 8 : -8, 12, 14, 8, 4);
-      ctx.fill();
-      ctx.fillStyle = "#d6ff9a";
-      ctx.fillRect(enemy.w * 0.22, enemy.h * 0.34, 6, 5);
-      ctx.fillRect(enemy.w * 0.6, enemy.h * 0.34, 6, 5);
-      ctx.fillStyle = "#101408";
-      ctx.fillRect(enemy.w * 0.3, enemy.h * 0.6, enemy.w * 0.4, 3);
+      face(ctx, enemy.w / 2, enemy.h * 0.38, 7, mood, enemy.facing, frame);
       break;
     }
+
     default: {
-      // Caminante: masa burocrática con papeles y sello, como en el arte clave.
-      ctx.fillStyle = cachedLinear(ctx, `walker-${level.id}`, 0, 0, enemy.w, enemy.h, [
-        [0, level.palette[2]],
-        [1, "#3a1140"],
-      ]);
-      rounded(ctx, 2, 5, enemy.w - 4, enemy.h - 5, 14);
-      ctx.fill();
+      // Burócrata: masa con expediente y sello, que respira y golpea por cuadros.
+      const squash = SQUASH_WALK[frame];
+      castShadow(ctx, enemy.w / 2, enemy.h + 3, enemy.w, 0);
+      ctx.translate(enemy.w / 2, enemy.h);
+      ctx.scale(1 + squash, 1 - squash);
+      ctx.translate(-enemy.w / 2, -enemy.h);
+      const blob = (c: CanvasRenderingContext2D) => {
+        c.beginPath();
+        c.roundRect(2, 5, enemy.w - 4, enemy.h - 5, 14);
+      };
+      volume(ctx, blob, flash ? "#ffffff" : tint(level.palette[2], -0.25), level.palette[3]);
       ctx.fillStyle = "#05060a";
       ctx.beginPath();
       ctx.moveTo(11, 0);
       ctx.lineTo(18, 11);
       ctx.lineTo(3, 9);
-      ctx.fill();
-      ctx.beginPath();
       ctx.moveTo(enemy.w - 11, 0);
       ctx.lineTo(enemy.w - 18, 11);
       ctx.lineTo(enemy.w - 3, 9);
       ctx.fill();
-      // Expediente sellado que carga el villano.
+      // Expediente que sostiene, y el sello que sube y baja.
       ctx.fillStyle = "#f2f5ff";
-      ctx.fillRect(enemy.w * 0.2, enemy.h - 12, 18, 12);
-      ctx.strokeStyle = "#ff5d6c";
-      ctx.lineWidth = 2;
+      ctx.fillRect(enemy.w * 0.16, enemy.h - 14, 20, 13);
+      ctx.fillStyle = "#9aa7bf";
+      for (let i = 0; i < 3; i += 1) {
+        ctx.fillRect(enemy.w * 0.16 + 3, enemy.h - 11 + i * 3, 14, 1.5);
+      }
+      const stampLift = STAMP[frame];
+      ctx.fillStyle = "#ff5d6c";
       ctx.beginPath();
-      ctx.arc(enemy.w * 0.2 + 9, enemy.h - 6, 4, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(enemy.w * 0.23, enemy.h * 0.38, 7, 5);
-      ctx.fillRect(enemy.w * 0.62, enemy.h * 0.38, 7, 5);
-      ctx.fillStyle = "#08080e";
-      ctx.fillRect(enemy.w * 0.29 + (enemy.facing > 0 ? 2 : 0), enemy.h * 0.38, 3, 5);
-      ctx.fillRect(enemy.w * 0.68 + (enemy.facing > 0 ? 2 : 0), enemy.h * 0.38, 3, 5);
+      ctx.roundRect(enemy.w * 0.62, enemy.h - 18 + stampLift, 13, 8, 2);
+      ctx.fill();
+      ctx.fillStyle = "#8c2b36";
+      ctx.fillRect(enemy.w * 0.66, enemy.h - 22 + stampLift, 5, 5);
+      face(ctx, enemy.w / 2, enemy.h * 0.4, 9, mood, enemy.facing, frame);
       break;
     }
   }
@@ -935,8 +1188,23 @@ function drawBoss(ctx: CanvasRenderingContext2D, world: WorldState) {
   if (x < -260 || x > VIEW_W + 260) return;
 
   glow(ctx, x + boss.w / 2, boss.y + boss.h / 2, boss.w * 0.9, definition.color, 0.18);
+  const frame = pose(5);
+  castShadow(ctx, x + boss.w / 2, GROUND_Y + 2, boss.w, 0);
   ctx.save();
   ctx.translate(x, boss.y);
+  // Anticipación: se encoge y se echa atrás justo antes de golpear.
+  if (boss.telegraph > 0 && boss.telegraphOf) {
+    const carga = 1 - boss.telegraph / boss.telegraphOf.telegraph;
+    ctx.translate(-boss.facing * carga * 14, carga * 6);
+    ctx.translate(boss.w / 2, boss.h);
+    ctx.scale(1 + carga * 0.08, 1 - carga * 0.1);
+    ctx.translate(-boss.w / 2, -boss.h);
+  } else {
+    const respira = BREATHE[frame];
+    ctx.translate(boss.w / 2, boss.h);
+    ctx.scale(1 + respira, 1 - respira);
+    ctx.translate(-boss.w / 2, -boss.h);
+  }
 
   // Aviso de ataque: halo creciente antes del golpe.
   if (boss.telegraph > 0 && boss.telegraphOf) {
@@ -988,17 +1256,15 @@ function drawBoss(ctx: CanvasRenderingContext2D, world: WorldState) {
   ctx.textBaseline = "middle";
   ctx.fillText(definition.glyph, boss.w / 2, boss.h * 0.44);
 
-  ctx.fillStyle = "#ffffffee";
-  const eye = calm ? 9 : 8 + Math.sin(t * 3.3) * 2;
-  ctx.beginPath();
-  ctx.ellipse(boss.w * 0.32, boss.h * 0.72, eye, eye * 0.6, 0, 0, Math.PI * 2);
-  ctx.ellipse(boss.w * 0.68, boss.h * 0.72, eye, eye * 0.6, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#12040f";
-  ctx.beginPath();
-  ctx.arc(boss.w * 0.32 + boss.facing * 2, boss.h * 0.72, 3, 0, Math.PI * 2);
-  ctx.arc(boss.w * 0.68 + boss.facing * 2, boss.h * 0.72, 3, 0, Math.PI * 2);
-  ctx.fill();
+  face(
+    ctx,
+    boss.w / 2,
+    boss.h * 0.72,
+    boss.w * 0.18,
+    boss.hurt > 0 ? "hurt" : boss.telegraph > 0 ? "alert" : "angry",
+    boss.facing,
+    frame,
+  );
   ctx.globalAlpha = 1;
 
   const barW = boss.w + 24;
@@ -1150,8 +1416,10 @@ function drawPlayer(
 ) {
   if (invulnerable > 0 && Math.floor(invulnerable * 14) % 2 === 0) return;
   glow(ctx, x + PLAYER_W / 2, y + PLAYER_H / 2, 46, "#12d9be", 0.16);
+  const stride = pose(0);
+  const bounce = Math.abs(vy) < 40 ? BOUNCE[stride] : 0;
   ctx.save();
-  ctx.translate(x - 4, y - 2);
+  ctx.translate(x - 4, y - 2 + bounce);
   if (facing < 0) {
     ctx.translate(48, 0);
     ctx.scale(-1, 1);
@@ -1263,7 +1531,8 @@ function drawAlly(ctx: CanvasRenderingContext2D, world: WorldState) {
 function drawGate(ctx: CanvasRenderingContext2D, world: WorldState, level: LevelDef) {
   const gateX = GATE_X - world.cameraX;
   const taken = world.collectibles.filter((item) => item.taken).length;
-  const open = taken >= requiredDocuments(world.levelIndex) && !world.boss?.alive;
+  const open =
+    taken >= requiredDocuments(world.levelIndex, world.owned) && !world.boss?.alive;
   if (gateX > -120 && gateX < VIEW_W + 120) {
     if (open) glow(ctx, gateX, 430, 70, level.palette[2], 0.3);
     ctx.strokeStyle = open ? level.palette[3] : "#667085";
@@ -1500,14 +1769,20 @@ export function drawWorld(ctx: CanvasRenderingContext2D, world: WorldState) {
   ctx.restore();
 
   // Viñeta: concentra la mirada en el centro de la acción.
-  ctx.save();
-  ctx.globalAlpha = 0.5;
-  const vignette = ctx.createRadialGradient(480, 270, 290, 480, 270, 620);
-  vignette.addColorStop(0, "#02030a00");
-  vignette.addColorStop(1, "#02030a");
-  ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-  ctx.restore();
+  const vignette = bake("vignette", (target) => {
+    target.globalAlpha = 0.5;
+    target.fillStyle = cachedVignette(target);
+    target.fillRect(0, 0, VIEW_W, VIEW_H);
+  });
+  if (vignette) {
+    ctx.drawImage(vignette as CanvasImageSource, 0, 0);
+  } else {
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = cachedVignette(ctx);
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    ctx.restore();
+  }
 
   if (world.flash > 0.01) {
     ctx.save();
